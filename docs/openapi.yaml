@@ -459,6 +459,59 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationError'
 
+  /candidate/profile/avatar:
+    delete:
+      tags: [Candidate Profile]
+      summary: Delete candidate avatar photo
+      description: Removes candidate avatar photo from profile and database, deleting physical image asset from disk.
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: Avatar photo deleted successfully.
+                  data:
+                    $ref: '#/components/schemas/CandidateProfile'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+    post:
+      tags: [Candidate Profile]
+      summary: Upload or update candidate avatar photo
+      description: Dedicated upload endpoint for candidate avatar photo (supports JPEG and PNG).
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                avatar:
+                  type: string
+                  format: binary
+                  description: Avatar photo file (JPEG/PNG)
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/CandidateProfile'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
   /candidate/career-preferences:
     get:
       tags: [Candidate Profile]

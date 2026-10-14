@@ -1,7 +1,7 @@
 const candidateProfileService = require('../services/candidateProfile.service');
 const CandidateProfileResource = require('../resources/candidateProfile.resource');
 const CareerPreferenceResource = require('../resources/careerPreference.resource');
-const { success } = require('../utils/response');
+const { success, actionSuccess } = require('../utils/response');
 
 class CandidateProfileController {
   /**
@@ -23,6 +23,18 @@ class CandidateProfileController {
     try {
       const result = await candidateProfileService.updateProfile(req.user, req.body);
       return success(res, CandidateProfileResource.toArray(result));
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * DELETE /api/candidate/profile/avatar
+   */
+  static async deleteAvatar(req, res, next) {
+    try {
+      const result = await candidateProfileService.deleteAvatar(req.user);
+      return actionSuccess(res, 'Avatar photo deleted successfully.', CandidateProfileResource.toArray(result));
     } catch (err) {
       next(err);
     }

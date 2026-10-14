@@ -221,4 +221,82 @@ describe('Candidate Profile Unit Tests (full_name & avatar/avater photo)', () =>
       expect(res.body.file).toBeNull();
     });
   });
+
+  describe('4. Delete Avatar Endpoints & Service', () => {
+    let testCandidateApp;
+    const candidateProfileService = require('../../src/services/candidateProfile.service');
+
+    beforeAll(() => {
+      testCandidateApp = express();
+      testCandidateApp.use(express.json());
+
+      // Mock user on req
+      testCandidateApp.use((req, res, next) => {
+        req.user = {
+          id: 1,
+          name: 'Ahmed Wael',
+          email: 'ahmed@example.com',
+          role: 'candidate',
+          avatar: '/uploads/avatars/user-pic.png'
+        };
+        next();
+      });
+
+      const CandidateProfileController = require('../../src/controllers/candidateProfile.controller');
+      testCandidateApp.delete('/api/candidate/profile/avatar', CandidateProfileController.deleteAvatar);
+      testCandidateApp.delete('/api/candidate/profile/avater', CandidateProfileController.deleteAvatar);
+      testCandidateApp.post('/api/candidate/profile/avatar/delete', CandidateProfileController.deleteAvatar);
+      testCandidateApp.delete('/api/candidate/avatar', CandidateProfileController.deleteAvatar);
+    });
+
+    it('DELETE /api/candidate/profile/avatar clears avatar and returns updated resource', async () => {
+      jest.spyOn(candidateProfileService, 'deleteAvatar').mockResolvedValueOnce({
+        user: { id: 1, name: 'Ahmed Wael', email: 'ahmed@example.com', avatar: null },
+        profile: { id: 10, full_name: 'Ahmed Wael', avatar: null, job_title: 'Developer' }
+      });
+
+      const res = await request(testCandidateApp).delete('/api/candidate/profile/avatar');
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('success');
+      expect(res.body.message).toContain('deleted');
+      expect(res.body.data.avatar).toBeNull();
+      expect(res.body.data.avater).toBeNull();
+      expect(res.body.data.profile.avatar).toBeNull();
+      expect(candidateProfileService.deleteAvatar).toHaveBeenCalled();
+    });
+
+    it('DELETE /api/candidate/profile/avater clears avatar via avater alias', async () => {
+      jest.spyOn(candidateProfileService, 'deleteAvatar').mockResolvedValueOnce({
+        user: { id: 1, name: 'Ahmed Wael', email: 'ahmed@example.com', avatar: null },
+        profile: { id: 10, full_name: 'Ahmed Wael', avatar: null, job_title: 'Developer' }
+      });
+
+      const res = await request(testCandidateApp).delete('/api/candidate/profile/avater');
+      expect(res.status).toBe(200);
+      expect(res.body.data.avatar).toBeNull();
+      expect(res.body.data.avater).toBeNull();
+    });
+
+    it('POST /api/candidate/profile/avatar/delete works as POST alias', async () => {
+      jest.spyOn(candidateProfileService, 'deleteAvatar').mockResolvedValueOnce({
+        user: { id: 1, name: 'Ahmed Wael', email: 'ahmed@example.com', avatar: null },
+        profile: { id: 10, full_name: 'Ahmed Wael', avatar: null, job_title: 'Developer' }
+      });
+
+      const res = await request(testCandidateApp).post('/api/candidate/profile/avatar/delete');
+      expect(res.status).toBe(200);
+      expect(res.body.data.avatar).toBeNull();
+    });
+
+    it('DELETE /api/candidate/avatar works via top-level route alias', async () => {
+      jest.spyOn(candidateProfileService, 'deleteAvatar').mockResolvedValueOnce({
+        user: { id: 1, name: 'Ahmed Wael', email: 'ahmed@example.com', avatar: null },
+        profile: { id: 10, full_name: 'Ahmed Wael', avatar: null, job_title: 'Developer' }
+      });
+
+      const res = await request(testCandidateApp).delete('/api/candidate/avatar');
+      expect(res.status).toBe(200);
+      expect(res.body.data.avatar).toBeNull();
+    });
+  });
 });

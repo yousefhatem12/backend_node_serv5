@@ -49,6 +49,25 @@ router.get('/skill-gaps', MatchController.getSkillGaps);
 router.get('/profile', CandidateProfileController.getProfile);
 router.patch('/profile', uploadAvatarMiddleware, validate(updateProfileSchema), CandidateProfileController.updateProfile);
 router.put('/profile', uploadAvatarMiddleware, validate(updateProfileSchema), CandidateProfileController.updateProfile);
+router.post('/profile', uploadAvatarMiddleware, validate(updateProfileSchema), CandidateProfileController.updateProfile);
+
+// Avatar photo delete endpoints
+router.delete('/profile/avatar', CandidateProfileController.deleteAvatar);
+router.delete('/profile/avater', CandidateProfileController.deleteAvatar);
+router.post('/profile/avatar/delete', CandidateProfileController.deleteAvatar);
+router.post('/profile/avater/delete', CandidateProfileController.deleteAvatar);
+router.delete('/avatar', CandidateProfileController.deleteAvatar);
+router.delete('/avater', CandidateProfileController.deleteAvatar);
+router.post('/avatar/delete', CandidateProfileController.deleteAvatar);
+router.post('/avater/delete', CandidateProfileController.deleteAvatar);
+
+// Dedicated avatar upload / change routes
+router.post('/profile/avatar', uploadAvatarMiddleware, CandidateProfileController.updateProfile);
+router.post('/profile/avater', uploadAvatarMiddleware, CandidateProfileController.updateProfile);
+router.patch('/profile/avatar', uploadAvatarMiddleware, CandidateProfileController.updateProfile);
+router.patch('/profile/avater', uploadAvatarMiddleware, CandidateProfileController.updateProfile);
+router.put('/profile/avatar', uploadAvatarMiddleware, CandidateProfileController.updateProfile);
+router.put('/profile/avater', uploadAvatarMiddleware, CandidateProfileController.updateProfile);
 
 router.get('/career-preferences', CandidateProfileController.getCareerPreferences);
 router.patch('/career-preferences', validate(updateCareerPreferencesSchema), CandidateProfileController.updateCareerPreferences);

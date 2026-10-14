@@ -11,6 +11,9 @@ async function startServer() {
     await db.sequelize.authenticate();
     logger.info(`[Database] Connected successfully to MySQL (${config.db.name} at ${config.db.host}:${config.db.port})`);
 
+    // Ensure candidate_profiles has required columns (full_name, avatar) in database
+    await ensureCandidateProfileColumns();
+
     // Start background queue worker
     worker.start(2000);
 
@@ -50,8 +53,33 @@ async function startServer() {
   }
 }
 
+async function ensureCandidateProfileColumns() {
+  try {
+    const queryInterface = db.sequelize.getQueryInterface();
+    const tableInfo = await queryInterface.describeTable('candidate_profiles').catch(() => null);
+    if (tableInfo) {
+      if (!tableInfo.full_name) {
+        await queryInterface.addColumn('candidate_profiles', 'full_name', {
+          type: db.Sequelize.STRING(150),
+          allowNull: true
+        }).catch(() => {});
+        logger.info('[Database] Added missing column "full_name" to candidate_profiles table.');
+      }
+      if (!tableInfo.avatar) {
+        await queryInterface.addColumn('candidate_profiles', 'avatar', {
+          type: db.Sequelize.STRING(255),
+          allowNull: true
+        }).catch(() => {});
+        logger.info('[Database] Added missing column "avatar" to candidate_profiles table.');
+      }
+    }
+  } catch (err) {
+    logger.warn('[Database] Schema check notice: %s', err.message);
+  }
+}
+
 if (require.main === module) {
   startServer();
 }
 
-module.exports = { startServer };
+module.exports = { startServer, ensureCandidateProfileColumns };

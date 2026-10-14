@@ -1,5 +1,20 @@
+const fs = require('fs');
+const path = require('path');
 const db = require('../models');
 const { NotFoundError, ForbiddenError } = require('../utils/errors');
+
+function removeOldAvatarFile(oldAvatar) {
+  if (oldAvatar && typeof oldAvatar === 'string' && oldAvatar.startsWith('/uploads/avatars/')) {
+    const fullPath = path.join(process.cwd(), oldAvatar);
+    if (fs.existsSync(fullPath)) {
+      try {
+        fs.unlinkSync(fullPath);
+      } catch (err) {
+        // Ignore file unlink error
+      }
+    }
+  }
+}
 
 class CandidateProfileService {
   /**
@@ -83,7 +98,10 @@ class CandidateProfileService {
     // Explicitly handle and persist avatar / avater
     const avatarInput = data.avatar !== undefined ? data.avatar : data.avater;
     if (avatarInput !== undefined) {
-      const cleanAvatar = avatarInput ? String(avatarInput).trim() : null;
+      const cleanAvatar = (avatarInput && String(avatarInput).trim() !== '') ? String(avatarInput).trim() : null;
+      if (profile.avatar && profile.avatar !== cleanAvatar) {
+        removeOldAvatarFile(profile.avatar);
+      }
       profile.avatar = cleanAvatar;
       if (user) {
         user.avatar = cleanAvatar;
@@ -94,6 +112,28 @@ class CandidateProfileService {
     Object.assign(profile, data);
     profile.checkCompletion();
     await profile.save();
+
+    return this.getFullProfile(user);
+  }
+
+  /**
+   * Delete candidate avatar photo from profile and database
+   */
+  async deleteAvatar(user) {
+    const profile = await this.getOrCreateProfile(user);
+    const oldAvatar = profile.avatar || (user && user.avatar);
+
+    if (oldAvatar) {
+      removeOldAvatarFile(oldAvatar);
+    }
+
+    profile.avatar = null;
+    await profile.save();
+
+    if (user) {
+      user.avatar = null;
+      await user.save();
+    }
 
     return this.getFullProfile(user);
   }
