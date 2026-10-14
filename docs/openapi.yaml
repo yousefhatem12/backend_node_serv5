@@ -1,0 +1,4932 @@
+openapi: 3.0.3
+info:
+  title: SkillMatch API
+  version: 1.0.0
+  description: |
+    # SkillMatch Career Intelligence & AI-Powered Job Matching Platform API
+    SkillMatch provides an enterprise-grade Career Intelligence API featuring:
+    - Candidate lifecycle & profiles with career preferences, education, experience, and project portfolios
+    - CV parsing, verification, and AI-driven improvement assistant
+    - Job discovery, saved bookmarks, and explainable multi-factor match engine
+    - Multi-stage job application pipeline and audit tracking
+    - Real-time in-app notifications and administrative composer
+    - AI-generated career roadmaps and progress tracking
+    - Interactive AI Mentor conversational assistant
+    - Simulated AI Interview Preparation and rubric evaluations
+    - Application Strategy assessments
+    - Administrative operations: skills taxonomy, company management, job sources & crawler ingestion, AI human-in-the-loop review queues, user moderation, audit logs, and analytics.
+
+servers:
+  - url: /api
+    description: SkillMatch API Server (Relative path works behind any domain, tunnel, or reverse proxy)
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Health
+    description: System baseline, uptime, and database health status
+  - name: Auth
+    description: Candidate and Administrator authentication, registration, OTP lifecycle, and session management
+  - name: Candidate Profile
+    description: Candidate profile, preferences, skills, educations, experiences, projects, and CV improvements
+  - name: Skills
+    description: Public skills search and taxonomy exploration
+  - name: CV
+    description: CV upload, asynchronous background extraction, retry, and extraction verification
+  - name: Jobs
+    description: Public job listings, candidate recommendations, explainable match breakdown, and bookmarks
+  - name: Applications
+    description: Job applications submission, tracking, withdrawal, and status lifecycle management
+  - name: Notifications
+    description: In-app notification feeds, unread counter badge, and mark-as-read actions
+  - name: Roadmaps
+    description: AI-generated personalized career roadmaps and milestone completion tracking
+  - name: Mentor
+    description: Context-aware AI career mentor chat sessions and message streaming
+  - name: Interview Prep
+    description: AI-assisted interactive interview simulation sessions and rubric evaluations
+  - name: Application Strategy
+    description: AI application fit and competitiveness assessment reports
+  - name: Admin
+    description: Comprehensive administrative suite for skills taxonomy, company management, job ingestion, AI review queue, audit logs, user moderation, and platform analytics
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: System health and operational readiness check
+      description: Returns health status of the API application, database connectivity, timestamp, and process uptime.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      responses:
+        '200':
+          description: System is healthy and operational
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/HealthStatus'
+                required: [data]
+              example:
+                data:
+                  status: healthy
+                  message: SkillMatch API is healthy and operational.
+                  database: connected
+                  timestamp: '2026-10-10T12:00:00.000Z'
+                  uptime: 120.45
+
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new candidate account
+      description: Registers candidate user credentials, creates unverified user record, and dispatches email OTP verification.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Registration successful, verification email dispatched
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AuthSuccessData'
+                required: [data]
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: User login
+      description: Authenticates user credentials and issues access and refresh JWT tokens.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Successful authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokenResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /auth/verify-email-otp:
+    post:
+      tags: [Auth]
+      summary: Verify email address using 6-digit OTP
+      description: Validates pending verification OTP and marks user email as verified.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, otp]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: candidate@example.com
+                otp:
+                  type: string
+                  example: '123456'
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/resend-email-otp:
+    post:
+      tags: [Auth]
+      summary: Resend email verification OTP
+      description: Generates a new verification OTP and sends it to user email. Rate limited.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: candidate@example.com
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /auth/forgot-password:
+    post:
+      tags: [Auth]
+      summary: Request password reset OTP
+      description: Initiates password recovery process by emailing a 6-digit reset OTP.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: candidate@example.com
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/forgot-password/verify-otp:
+    post:
+      tags: [Auth]
+      summary: Verify password reset OTP
+      description: Verifies password reset OTP and issues a short-lived reset token for completing password update.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, otp]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: candidate@example.com
+                otp:
+                  type: string
+                  example: '654321'
+      responses:
+        '200':
+          description: OTP verified successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: OTP verified successfully.
+                  reset_token:
+                    type: string
+                    example: 'rst_a1b2c3d4e5f6'
+                required: [status, message, reset_token]
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/reset-password:
+    post:
+      tags: [Auth]
+      summary: Reset account password
+      description: Updates account password using verified reset token.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current authenticated user profile
+      description: Returns user profile information, role, candidate profile summary, and status.
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      responses:
+        '200':
+          description: Authenticated user details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/User'
+                required: [data]
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh JWT session tokens
+      description: Exchanges a valid refresh token for a new access token and rotated refresh token.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+                  example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+      responses:
+        '200':
+          description: Refreshed token pair
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokenResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Log out and invalidate token session
+      description: Revokes current session tokens and clears server-side authentication state.
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /candidate/recommended-jobs:
+    get:
+      tags: [Candidate Profile]
+      summary: Get personalized recommended jobs for candidate
+      description: Returns ranked list of jobs calculated by the multi-factor match engine based on candidate profile and preferences. Requires candidate role.
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: min_score
+          in: query
+          schema:
+            type: number
+            minimum: 0
+            maximum: 100
+          description: Filter jobs with match score greater than or equal to value
+        - name: employment_type
+          in: query
+          schema:
+            type: string
+            enum: [full_time, part_time, contract, freelance, internship]
+        - name: remote_only
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Paginated recommended jobs
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/JobPost'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /candidate/skill-gaps:
+    get:
+      tags: [Candidate Profile]
+      summary: Analyze candidate skill gaps against target jobs
+      description: Compares candidate skills against market demand and recommended roles, highlighting critical missing skills.
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      responses:
+        '200':
+          description: Skill gap analysis results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SkillGapAnalysis'
+                required: [data]
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /candidate/profile:
+    get:
+      tags: [Candidate Profile]
+      summary: Get full candidate profile
+      description: Retrieves complete candidate profile including bio, location, completeness score, and associated assets.
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/CandidateProfile'
+                required: [data]
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+    patch:
+      tags: [Candidate Profile]
+      summary: Update candidate profile
+      description: Updates candidate bio, contact information, target job title, and social links.
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCandidateProfileRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/CandidateProfile'
+                required: [data]
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /candidate/career-preferences:
+    get:
+      tags: [Candidate Profile]
+      summary: Get candidate career preferences
+      description: Returns target job preferences including preferred locations, titles, remote policy, and salary expectation.
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/CareerPreference'
+                required: [data]
+    patch:
+      tags: [Candidate Profile]
+      summary: Update career preferences
+      description: Updates candidate target career search preferences.
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCareerPreferenceRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/CareerPreference'
+                required: [data]
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /candidate/skills:
+    get:
+      tags: [Candidate Profile]
+      summary: List candidate skills
+      description: Returns list of skills linked to the candidate profile with proficiency levels and experience years.
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CandidateSkill'
+                required: [data]
+    post:
+      tags: [Candidate Profile]
+      summary: Add skill to candidate profile
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddCandidateSkillRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/CandidateSkill'
+                required: [data]
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /candidate/skills/{id}:
+    delete:
+      tags: [Candidate Profile]
+      summary: Remove skill from candidate profile
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /candidate/educations:
+    get:
+      tags: [Candidate Profile]
+      summary: List candidate education records
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Education'
+                required: [data]
+    post:
+      tags: [Candidate Profile]
+      summary: Add education record
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EducationInput'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Education'
+                required: [data]
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /candidate/educations/{id}:
+    get:
+      tags: [Candidate Profile]
+      summary: Get single education record
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Education'
+                required: [data]
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    patch:
+      tags: [Candidate Profile]
+      summary: Update education record
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEducationInput'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Education'
+                required: [data]
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags: [Candidate Profile]
+      summary: Delete education record
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /candidate/experiences:
+    get:
+      tags: [Candidate Profile]
+      summary: List candidate work experience records
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Experience'
+                required: [data]
+    post:
+      tags: [Candidate Profile]
+      summary: Add work experience record
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExperienceInput'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Experience'
+                required: [data]
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /candidate/experiences/{id}:
+    get:
+      tags: [Candidate Profile]
+      summary: Get single work experience record
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Experience'
+                required: [data]
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    patch:
+      tags: [Candidate Profile]
+      summary: Update work experience record
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateExperienceInput'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Experience'
+                required: [data]
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags: [Candidate Profile]
+      summary: Delete work experience record
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /candidate/projects:
+    get:
+      tags: [Candidate Profile]
+      summary: List candidate project records
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Project'
+                required: [data]
+    post:
+      tags: [Candidate Profile]
+      summary: Add project portfolio item
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectInput'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Project'
+                required: [data]
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /candidate/projects/{id}:
+    get:
+      tags: [Candidate Profile]
+      summary: Get single project record
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Project'
+                required: [data]
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    patch:
+      tags: [Candidate Profile]
+      summary: Update project record
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProjectInput'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Project'
+                required: [data]
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags: [Candidate Profile]
+      summary: Delete project record
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /candidate/cv-improvements/analyze:
+    post:
+      tags: [Candidate Profile]
+      summary: Run AI CV improvement analysis
+      description: Triggers comprehensive AI critique on candidate CV with section-by-section scoring, action verbs recommendations, ATS readability, and targeted job role alignment.
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cv_document_id:
+                  type: integer
+                  example: 12
+                target_role:
+                  type: string
+                  example: Senior Node.js Backend Engineer
+                job_post_id:
+                  type: integer
+                  example: 45
+      responses:
+        '200':
+          description: Analysis generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/CvImprovement'
+                required: [data]
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /candidate/cv-improvements/latest:
+    get:
+      tags: [Candidate Profile]
+      summary: Get latest CV improvement analysis
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/CvImprovement'
+                required: [data]
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /candidate/cv-improvements:
+    get:
+      tags: [Candidate Profile]
+      summary: List candidate CV improvement analysis history
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/CvImprovement'
+
+  /skills/search:
+    get:
+      tags: [Skills]
+      summary: Autocomplete search skills taxonomy
+      description: Searches verified skills and recognized aliases by substring match.
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+          description: Search query keyword
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: Matching skills list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Skill'
+                required: [data]
+
+  /cv/upload:
+    post:
+      tags: [CV]
+      summary: Upload CV file (PDF or DOCX)
+      description: Accepts a CV document file upload, stores the file securely, creates a CV record, and dispatches background parsing.
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [cv_file]
+              properties:
+                cv_file:
+                  type: string
+                  format: binary
+                  description: CV document file in PDF, DOC, or DOCX format (max 10MB)
+      responses:
+        '201':
+          description: CV uploaded and extraction dispatched
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionSuccessEnvelope'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /cv/status/{cvDocument}:
+    get:
+      tags: [CV]
+      summary: Poll CV processing and extraction status
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: cvDocument
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/CvDocument'
+                required: [data]
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /cv/history:
+    get:
+      tags: [CV]
+      summary: Get uploaded CV documents history
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CvDocument'
+                required: [data]
+
+  /cv/retry/{cvDocument}:
+    post:
+      tags: [CV]
+      summary: Retry failed CV extraction
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: cvDocument
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /cv/extractions/{extraction}/verify:
+    post:
+      tags: [CV]
+      summary: Confirm or adjust extracted CV data into candidate profile
+      description: Allows candidate to confirm or edit extracted skills, education, and experience items into their live profile.
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: extraction
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyCvExtractionRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /jobs:
+    get:
+      tags: [Jobs]
+      summary: Browse and filter active job postings feed
+      description: Public job listings feed with keyword search, location, employment type, salary range, and optional bookmark state when authenticated.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Search keywords matching title, description, or requirements
+        - name: location
+          in: query
+          schema:
+            type: string
+        - name: employment_type
+          in: query
+          schema:
+            type: string
+            enum: [full_time, part_time, contract, freelance, internship]
+        - name: experience_level
+          in: query
+          schema:
+            type: string
+            enum: [entry, mid, senior, lead, executive]
+        - name: is_remote
+          in: query
+          schema:
+            type: boolean
+        - name: min_salary
+          in: query
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Paginated job listings
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/JobPost'
+
+  /jobs/recommendations:
+    get:
+      tags: [Jobs]
+      summary: Get AI recommended jobs for candidate
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: min_score
+          in: query
+          schema:
+            type: number
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/JobPost'
+
+  /jobs/saved:
+    get:
+      tags: [Jobs]
+      summary: List candidate bookmarked jobs
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/JobPost'
+
+  /saved-jobs:
+    get:
+      tags: [Jobs]
+      summary: List candidate bookmarked jobs (Alternative endpoint)
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/JobPost'
+
+  /saved-jobs/{jobPost}:
+    delete:
+      tags: [Jobs]
+      summary: Remove job bookmark (Alternative endpoint)
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: jobPost
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+
+  /jobs/{jobPost}/match:
+    get:
+      tags: [Jobs]
+      summary: Get explainable match breakdown for specific job
+      description: Returns multi-factor match score breakdown (skills, experience, preferences) with matched and missing skill lists.
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: jobPost
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/JobMatch'
+                required: [data]
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /jobs/{jobPost}/match/recalculate:
+    post:
+      tags: [Jobs]
+      summary: Force re-calculate match score for job
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: jobPost
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: Match score recalculated.
+                  data:
+                    $ref: '#/components/schemas/JobMatch'
+                required: [status, message, data]
+
+  /jobs/{jobPost}:
+    get:
+      tags: [Jobs]
+      summary: Get single job post details
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: jobPost
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/JobPost'
+                required: [data]
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /jobs/{jobPost}/save:
+    post:
+      tags: [Jobs]
+      summary: Bookmark job post
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: jobPost
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+    delete:
+      tags: [Jobs]
+      summary: Un-bookmark job post
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: jobPost
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+
+  /applications:
+    get:
+      tags: [Applications]
+      summary: List applications (Candidate sees own, Admin sees all)
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [submitted, under_review, interviewing, offered, rejected, withdrawn]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Application'
+    post:
+      tags: [Applications]
+      summary: Submit new job application
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateApplicationRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Application'
+                required: [data]
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /applications/{application}:
+    get:
+      tags: [Applications]
+      summary: Get application details
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: application
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Application'
+                required: [data]
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /applications/{application}/status:
+    patch:
+      tags: [Applications]
+      summary: Update application status (Admin only)
+      description: Advances application through multi-stage lifecycle (under_review, interviewing, offered, rejected).
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: application
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [submitted, under_review, interviewing, offered, rejected]
+                notes:
+                  type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Application'
+                required: [data]
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /applications/{application}/withdraw:
+    post:
+      tags: [Applications]
+      summary: Candidate self-withdraws application
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: application
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+
+  /applications/{application}/notes:
+    patch:
+      tags: [Applications]
+      summary: Candidate updates personal application notes
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: application
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [notes]
+              properties:
+                notes:
+                  type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Application'
+                required: [data]
+
+  /notifications/unread-count:
+    get:
+      tags: [Notifications]
+      summary: Get unread notifications badge counter
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      unread_count:
+                        type: integer
+                        example: 3
+                    required: [unread_count]
+                required: [data]
+
+  /notifications/read-all:
+    patch:
+      tags: [Notifications]
+      summary: Mark all user notifications as read
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+
+  /notifications:
+    get:
+      tags: [Notifications]
+      summary: List user notifications
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: unread_only
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Notification'
+
+  /notifications/{notification}/read:
+    patch:
+      tags: [Notifications]
+      summary: Mark single notification as read
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: notification
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+
+  /roadmaps:
+    post:
+      tags: [Roadmaps]
+      summary: Generate personalized career learning roadmap
+      description: Invokes AI roadmap generator based on candidate profile, target role, and identified skill gaps.
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoadmapRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Roadmap'
+                required: [data]
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+    get:
+      tags: [Roadmaps]
+      summary: List candidate roadmaps
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Roadmap'
+
+  /roadmaps/{roadmap}:
+    get:
+      tags: [Roadmaps]
+      summary: Get roadmap details with milestone stages and task hierarchy
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: roadmap
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Roadmap'
+                required: [data]
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /roadmaps/{roadmap}/refresh:
+    post:
+      tags: [Roadmaps]
+      summary: Dynamically refresh roadmap based on progress or market changes
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: roadmap
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Roadmap'
+                required: [data]
+
+  /roadmaps/tasks/{roadmapTask}/complete:
+    patch:
+      tags: [Roadmaps]
+      summary: Mark roadmap task as completed
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: roadmapTask
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                completion_note:
+                  type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RoadmapTask'
+                required: [data]
+
+  /roadmap-tasks/{roadmapTask}/complete:
+    patch:
+      tags: [Roadmaps]
+      summary: Mark roadmap task as completed (Flat route variant)
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: roadmapTask
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                completion_note:
+                  type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RoadmapTask'
+                required: [data]
+
+  /mentor/context-preview:
+    get:
+      tags: [Mentor]
+      summary: Preview candidate context bundle passed to AI Mentor
+      description: Returns consolidated profile, skill gaps, target jobs, and roadmaps data used as prompt context for AI Mentor conversations.
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/MentorContextPreview'
+                required: [data]
+
+  /mentor/conversations:
+    post:
+      tags: [Mentor]
+      summary: Start new AI mentor conversation session
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  example: Career Growth Discussion
+                context_scope:
+                  type: string
+                  enum: [general, skills, interview, career_change]
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/MentorConversation'
+                required: [data]
+    get:
+      tags: [Mentor]
+      summary: List candidate AI mentor conversations
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: is_archived
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/MentorConversation'
+
+  /mentor/conversations/{conversation}:
+    get:
+      tags: [Mentor]
+      summary: Get mentor conversation details and full message history
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: conversation
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/MentorConversation'
+                required: [data]
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    patch:
+      tags: [Mentor]
+      summary: Update conversation title or archive state
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: conversation
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                is_archived:
+                  type: boolean
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/MentorConversation'
+                required: [data]
+    delete:
+      tags: [Mentor]
+      summary: Delete mentor conversation
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: conversation
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+
+  /mentor/conversations/{conversation}/messages:
+    post:
+      tags: [Mentor]
+      summary: Send message to AI mentor and receive contextual reply
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: conversation
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: string
+                  example: How can I prepare for a Senior Node.js system design interview?
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      user_message:
+                        $ref: '#/components/schemas/MentorMessage'
+                      mentor_reply:
+                        $ref: '#/components/schemas/MentorMessage'
+                    required: [user_message, mentor_reply]
+                required: [data]
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /interview-prep/sessions:
+    post:
+      tags: [Interview Prep]
+      summary: Start interactive AI mock interview session
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartInterviewSessionRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/InterviewSession'
+                required: [data]
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    get:
+      tags: [Interview Prep]
+      summary: List candidate interview prep sessions
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/InterviewSession'
+
+  /interview-prep/sessions/{session}:
+    get:
+      tags: [Interview Prep]
+      summary: Get interview session details, questions, and evaluations
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: session
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/InterviewSession'
+                required: [data]
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /interview-prep/sessions/{session}/evaluate:
+    post:
+      tags: [Interview Prep]
+      summary: Submit candidate answer and receive AI rubric critique
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: session
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question_index, answer]
+              properties:
+                question_index:
+                  type: integer
+                  example: 0
+                answer:
+                  type: string
+                  example: In Node.js, the event loop handles non-blocking I/O using libuv thread pool...
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/InterviewEvaluation'
+                required: [data]
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /application-strategy/assess:
+    post:
+      tags: [Application Strategy]
+      summary: Generate AI application strategy report for a target job
+      description: Produces comprehensive tactical advice, keyword alignment, interview prep tips, and positioning insights for a candidate applying to a target job post.
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [job_post_id]
+              properties:
+                job_post_id:
+                  type: integer
+                  example: 10
+                cv_document_id:
+                  type: integer
+                  example: 5
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/ApplicationStrategy'
+                required: [data]
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /application-strategy:
+    get:
+      tags: [Application Strategy]
+      summary: List candidate application strategy assessments history
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ApplicationStrategy'
+
+  /application-strategy/{strategy}:
+    get:
+      tags: [Application Strategy]
+      summary: Get single application strategy assessment
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: strategy
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/ApplicationStrategy'
+                required: [data]
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /admin/skills:
+    post:
+      tags: [Admin]
+      summary: Create new skill in taxonomy (Admin only)
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminCreateSkillRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Skill'
+                required: [data]
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /admin/skills/{id}:
+    patch:
+      tags: [Admin]
+      summary: Update taxonomy skill (Admin only)
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpdateSkillRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Skill'
+                required: [data]
+
+  /admin/skills/{sourceSkillId}/merge:
+    post:
+      tags: [Admin]
+      summary: Merge duplicate skill into canonical skill (Admin only)
+      description: Migrates candidate skills, job requirements, and aliases from source skill to target skill, then soft-deletes source skill.
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: sourceSkillId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_skill_id]
+              properties:
+                target_skill_id:
+                  type: integer
+                  example: 12
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+
+  /admin/skills/{id}/aliases:
+    get:
+      tags: [Admin]
+      summary: List aliases for a skill
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SkillAlias'
+                required: [data]
+    post:
+      tags: [Admin]
+      summary: Add alias for skill
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [alias]
+              properties:
+                alias:
+                  type: string
+                  example: Node JS
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SkillAlias'
+                required: [data]
+
+  /admin/skills/{id}/aliases/{aliasId}:
+    patch:
+      tags: [Admin]
+      summary: Update skill alias
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: aliasId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [alias]
+              properties:
+                alias:
+                  type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SkillAlias'
+                required: [data]
+    delete:
+      tags: [Admin]
+      summary: Delete skill alias
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: aliasId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+
+  /admin/companies:
+    get:
+      tags: [Admin]
+      summary: List companies (Admin view)
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: q
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Company'
+    post:
+      tags: [Admin]
+      summary: Create new company record
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminCreateCompanyRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Company'
+                required: [data]
+
+  /admin/companies/{company}:
+    get:
+      tags: [Admin]
+      summary: Get company details with job count
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: company
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Company'
+                required: [data]
+    patch:
+      tags: [Admin]
+      summary: Update company profile
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: company
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpdateCompanyRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Company'
+                required: [data]
+
+  /admin/companies/{sourceCompany}/merge:
+    post:
+      tags: [Admin]
+      summary: Merge source company into target company
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: sourceCompany
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_company_id]
+              properties:
+                target_company_id:
+                  type: integer
+                  example: 3
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+
+  /admin/jobs:
+    post:
+      tags: [Admin]
+      summary: Create official job posting (Admin only)
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminCreateJobPostRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/JobPost'
+                required: [data]
+
+  /admin/jobs/{jobPost}:
+    get:
+      tags: [Admin]
+      summary: Get job details (Admin view)
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: jobPost
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/JobPost'
+                required: [data]
+    patch:
+      tags: [Admin]
+      summary: Update job post attributes, requirements, or status
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: jobPost
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpdateJobPostRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/JobPost'
+                required: [data]
+
+  /admin/notifications/compose:
+    post:
+      tags: [Admin]
+      summary: Broadcast system notification to targeted users or roles
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminComposeNotificationRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+
+  /admin/notifications:
+    post:
+      tags: [Admin]
+      summary: Broadcast system notification (Alias endpoint)
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminComposeNotificationRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+
+  /admin/job-sources:
+    get:
+      tags: [Admin]
+      summary: List configured external job crawler sources
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/JobSource'
+    post:
+      tags: [Admin]
+      summary: Register new job crawler source
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminCreateJobSourceRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/JobSource'
+                required: [data]
+
+  /admin/job-sources/{jobSource}:
+    get:
+      tags: [Admin]
+      summary: Get single job crawler source details
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: jobSource
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/JobSource'
+                required: [data]
+    patch:
+      tags: [Admin]
+      summary: Update job source configuration
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: jobSource
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpdateJobSourceRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/JobSource'
+                required: [data]
+    delete:
+      tags: [Admin]
+      summary: Delete or archive job source
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: jobSource
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+
+  /admin/job-sources/{jobSource}/run:
+    post:
+      tags: [Admin]
+      summary: Trigger manual ingestion run for job source
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: jobSource
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                run_type:
+                  type: string
+                  enum: [manual, full, incremental]
+                  default: manual
+      responses:
+        '202':
+          description: Ingestion job dispatched successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: Ingestion run triggered.
+                  data:
+                    $ref: '#/components/schemas/IngestionRun'
+                required: [status, message, data]
+
+  /admin/job-sources/{jobSource}/runs:
+    get:
+      tags: [Admin]
+      summary: List ingestion runs for specific job source
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: jobSource
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/IngestionRun'
+
+  /admin/job-sources/{jobSource}/raw-jobs:
+    get:
+      tags: [Admin]
+      summary: List raw jobs ingested from specific job source
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: jobSource
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/RawJob'
+
+  /admin/job-sources/{jobSource}/raw-jobs/{rawJob}:
+    get:
+      tags: [Admin]
+      summary: Get raw job details under specific job source
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: jobSource
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: rawJob
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RawJob'
+                required: [data]
+
+  /admin/ingestion-runs:
+    get:
+      tags: [Admin]
+      summary: List all global crawler ingestion runs across sources
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/IngestionRun'
+
+  /admin/raw-jobs:
+    get:
+      tags: [Admin]
+      summary: List all global raw scraped jobs
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, processed, failed, skipped]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/RawJob'
+
+  /admin/raw-jobs/{rawJob}:
+    get:
+      tags: [Admin]
+      summary: Get single raw job details and raw payload
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: rawJob
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RawJob'
+                required: [data]
+
+  /admin/job-matches:
+    get:
+      tags: [Admin]
+      summary: Inspect computed match records across platform
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: candidate_id
+          in: query
+          schema:
+            type: integer
+        - name: job_post_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/JobMatch'
+
+  /admin/ai-review-items:
+    get:
+      tags: [Admin]
+      summary: List AI items requiring human-in-the-loop review
+      description: Returns queue of AI extractions, classifications, or match outliers requiring human verification.
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, approved, corrected, rejected]
+        - name: entity_type
+          in: query
+          schema:
+            type: string
+            enum: [cv_extraction, job_parsing, match_computation, skill_classification]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/AiReviewItem'
+
+  /admin/ai-review-items/{aiReviewItem}:
+    get:
+      tags: [Admin]
+      summary: Get AI review item details
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: aiReviewItem
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AiReviewItem'
+                required: [data]
+
+  /admin/ai-review-items/{aiReviewItem}/approve:
+    post:
+      tags: [Admin]
+      summary: Approve AI review item
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: aiReviewItem
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                review_notes:
+                  type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+
+  /admin/ai-review-items/{aiReviewItem}/correct:
+    post:
+      tags: [Admin]
+      summary: Submit human correction for AI review item
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: aiReviewItem
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [corrections]
+              properties:
+                corrections:
+                  type: object
+                review_notes:
+                  type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+
+  /admin/ai-review-items/{aiReviewItem}/reject:
+    post:
+      tags: [Admin]
+      summary: Reject AI review item
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: aiReviewItem
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rejection_reason]
+              properties:
+                rejection_reason:
+                  type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+
+  /admin/audit-logs:
+    get:
+      tags: [Admin]
+      summary: Query system audit trails
+      description: Returns tamper-evident administrative action logs, user moderation history, and security changes.
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: action
+          in: query
+          schema:
+            type: string
+        - name: entity_type
+          in: query
+          schema:
+            type: string
+        - name: user_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/AuditLog'
+
+  /admin/users:
+    get:
+      tags: [Admin]
+      summary: List registered platform users
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [candidate, admin, super_admin]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, suspended, deactivated]
+        - name: q
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/AdminUser'
+
+  /admin/users/{user}:
+    get:
+      tags: [Admin]
+      summary: Get user details and account status (Admin view)
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: user
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminUser'
+                required: [data]
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /admin/users/{user}/status:
+    patch:
+      tags: [Admin]
+      summary: Update user account status (Suspend or activate)
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: user
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [active, suspended, deactivated]
+                reason:
+                  type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminUser'
+                required: [data]
+
+  /admin/users/{user}/role:
+    patch:
+      tags: [Admin]
+      summary: Change user role (Super Admin only)
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: user
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role:
+                  type: string
+                  enum: [candidate, admin, super_admin]
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminUser'
+                required: [data]
+
+  /admin/statistics:
+    get:
+      tags: [Admin]
+      summary: Get platform aggregate statistics and analytics
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/PlatformStatistics'
+                required: [data]
+
+  /admin/dashboard:
+    get:
+      tags: [Admin]
+      summary: Get admin dashboard overview metrics
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/PlatformStatistics'
+                required: [data]
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Paste your JWT access token here. Role requirements:
+        - Candidate routes require a token with `role: candidate`
+        - Admin routes require a token with `role: admin` or `super_admin`
+
+  parameters:
+    AcceptLanguage:
+      name: Accept-Language
+      in: header
+      required: false
+      schema:
+        type: string
+        enum: [en, ar]
+        default: en
+      description: Language preference for response messages (en | ar)
+    PageParam:
+      name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: Page number for pagination
+    PerPageParam:
+      name: per_page
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 15
+      description: Number of items to return per page
+
+  responses:
+    ActionSuccess:
+      description: Action completed successfully
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ActionSuccessEnvelope'
+          example:
+            status: success
+            message: Operation completed successfully.
+
+    UnauthorizedError:
+      description: Authentication credentials missing or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            message: Unauthenticated or token expired.
+
+    ForbiddenError:
+      description: Authenticated user does not possess required role or permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            message: Forbidden access. Requires active candidate role.
+
+    NotFoundError:
+      description: Requested resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            message: Resource not found.
+
+    ValidationError:
+      description: Request validation failed (Laravel-style error shape)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationErrorResponse'
+          example:
+            message: The given data was invalid.
+            errors:
+              email:
+                - The email has already been taken.
+              password:
+                - Password must be at least 8 characters.
+
+    RateLimitError:
+      description: Too many requests sent within rate limit window
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            message: Too many attempts. Please try again in 15 minutes.
+
+  schemas:
+    # --- Standard Envelopes ---
+    DataEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+
+    ActionSuccessEnvelope:
+      type: object
+      required: [status, message]
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: Operation completed successfully.
+        data:
+          type: object
+          nullable: true
+
+    PaginatedEnvelope:
+      type: object
+      required: [data, links, meta]
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+        links:
+          $ref: '#/components/schemas/PaginationLinks'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    PaginationLinks:
+      type: object
+      properties:
+        first:
+          type: string
+          nullable: true
+          example: '/api/jobs?page=1'
+        last:
+          type: string
+          nullable: true
+          example: '/api/jobs?page=10'
+        prev:
+          type: string
+          nullable: true
+          example: null
+        next:
+          type: string
+          nullable: true
+          example: '/api/jobs?page=2'
+
+    PaginationMeta:
+      type: object
+      required: [current_page, last_page, per_page, total]
+      properties:
+        current_page:
+          type: integer
+          example: 1
+        from:
+          type: integer
+          nullable: true
+          example: 1
+        last_page:
+          type: integer
+          example: 10
+        per_page:
+          type: integer
+          example: 15
+        to:
+          type: integer
+          nullable: true
+          example: 15
+        total:
+          type: integer
+          example: 150
+
+    ErrorResponse:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          example: An error occurred processing your request.
+
+    ValidationErrorResponse:
+      type: object
+      required: [message, errors]
+      properties:
+        message:
+          type: string
+          example: The given data was invalid.
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          example:
+            email:
+              - The email field is required.
+
+    # --- Domain Entities ---
+    HealthStatus:
+      type: object
+      required: [status, message, database]
+      properties:
+        status:
+          type: string
+          example: healthy
+        message:
+          type: string
+          example: SkillMatch API is healthy and operational.
+        database:
+          type: string
+          example: connected
+        timestamp:
+          type: string
+          format: date-time
+        uptime:
+          type: number
+          example: 245.8
+
+    RegisterRequest:
+      type: object
+      required: [name, email, password, password_confirmation]
+      properties:
+        name:
+          type: string
+          example: Ahmed Wael
+        email:
+          type: string
+          format: email
+          example: ahmed.wael@example.com
+        password:
+          type: string
+          format: password
+          example: Password123!
+        password_confirmation:
+          type: string
+          format: password
+          example: Password123!
+        role:
+          type: string
+          enum: [candidate]
+          default: candidate
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: ahmed.wael@example.com
+        password:
+          type: string
+          format: password
+          example: Password123!
+
+    ResetPasswordRequest:
+      type: object
+      required: [email, reset_token, password, password_confirmation]
+      properties:
+        email:
+          type: string
+          format: email
+          example: ahmed.wael@example.com
+        reset_token:
+          type: string
+          example: rst_1a2b3c4d5e
+        password:
+          type: string
+          format: password
+          example: NewPassword123!
+        password_confirmation:
+          type: string
+          format: password
+          example: NewPassword123!
+
+    AuthSuccessData:
+      type: object
+      required: [user, access_token, refresh_token, token_type, expires_in]
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        access_token:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        refresh_token:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        token_type:
+          type: string
+          example: bearer
+        expires_in:
+          type: integer
+          example: 3600
+
+    AuthTokenResponse:
+      type: object
+      required: [access_token, refresh_token, token_type, expires_in, user]
+      properties:
+        access_token:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        refresh_token:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        token_type:
+          type: string
+          example: bearer
+        expires_in:
+          type: integer
+          example: 3600
+        user:
+          $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      required: [id, name, email, role, status]
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: Ahmed Wael
+        email:
+          type: string
+          format: email
+          example: ahmed.wael@example.com
+        role:
+          type: string
+          enum: [candidate, admin, super_admin]
+          example: candidate
+        status:
+          type: string
+          enum: [active, suspended, deactivated]
+          example: active
+        email_verified_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    AdminUser:
+      allOf:
+        - $ref: '#/components/schemas/User'
+        - type: object
+          properties:
+            last_login_at:
+              type: string
+              format: date-time
+              nullable: true
+            applications_count:
+              type: integer
+              example: 5
+
+    CandidateProfile:
+      type: object
+      required: [id, user_id]
+      properties:
+        id:
+          type: integer
+          example: 1
+        user_id:
+          type: integer
+          example: 1
+        first_name:
+          type: string
+          example: Ahmed
+        last_name:
+          type: string
+          example: Wael
+        phone:
+          type: string
+          example: '+201012345678'
+        headline:
+          type: string
+          example: Senior Backend Engineer | Node.js & Cloud Architecture
+        summary:
+          type: string
+          example: 5+ years building scalable Node.js distributed systems and REST APIs.
+        location:
+          type: string
+          example: Cairo, Egypt
+        linkedin_url:
+          type: string
+          nullable: true
+        github_url:
+          type: string
+          nullable: true
+        portfolio_url:
+          type: string
+          nullable: true
+        completeness_score:
+          type: integer
+          example: 85
+        created_at:
+          type: string
+          format: date-time
+
+    UpdateCandidateProfileRequest:
+      type: object
+      properties:
+        first_name:
+          type: string
+        last_name:
+          type: string
+        phone:
+          type: string
+        headline:
+          type: string
+        summary:
+          type: string
+        location:
+          type: string
+        linkedin_url:
+          type: string
+        github_url:
+          type: string
+        portfolio_url:
+          type: string
+
+    CareerPreference:
+      type: object
+      required: [id, candidate_id]
+      properties:
+        id:
+          type: integer
+          example: 1
+        candidate_id:
+          type: integer
+          example: 1
+        preferred_titles:
+          type: array
+          items:
+            type: string
+          example: ['Backend Engineer', 'Senior Node.js Developer']
+        preferred_locations:
+          type: array
+          items:
+            type: string
+          example: ['Cairo', 'Dubai', 'Remote']
+        employment_types:
+          type: array
+          items:
+            type: string
+          example: ['full_time', 'contract']
+        target_salary_min:
+          type: number
+          example: 3500
+        target_salary_currency:
+          type: string
+          example: USD
+        is_open_to_remote:
+          type: boolean
+          example: true
+
+    UpdateCareerPreferenceRequest:
+      type: object
+      properties:
+        preferred_titles:
+          type: array
+          items:
+            type: string
+        preferred_locations:
+          type: array
+          items:
+            type: string
+        employment_types:
+          type: array
+          items:
+            type: string
+        target_salary_min:
+          type: number
+        target_salary_currency:
+          type: string
+        is_open_to_remote:
+          type: boolean
+
+    Skill:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+          example: 5
+        name:
+          type: string
+          example: Node.js
+        category:
+          type: string
+          example: Backend Development
+        description:
+          type: string
+          nullable: true
+
+    CandidateSkill:
+      type: object
+      required: [id, candidate_id, skill_id, proficiency_level]
+      properties:
+        id:
+          type: integer
+          example: 1
+        candidate_id:
+          type: integer
+          example: 1
+        skill_id:
+          type: integer
+          example: 5
+        proficiency_level:
+          type: string
+          enum: [beginner, intermediate, advanced, expert]
+          example: advanced
+        years_of_experience:
+          type: number
+          example: 4.5
+        skill:
+          $ref: '#/components/schemas/Skill'
+
+    AddCandidateSkillRequest:
+      type: object
+      required: [skill_id, proficiency_level]
+      properties:
+        skill_id:
+          type: integer
+          example: 5
+        proficiency_level:
+          type: string
+          enum: [beginner, intermediate, advanced, expert]
+          example: advanced
+        years_of_experience:
+          type: number
+          example: 4
+
+    Education:
+      type: object
+      required: [id, candidate_id, institution, degree, field_of_study]
+      properties:
+        id:
+          type: integer
+          example: 1
+        candidate_id:
+          type: integer
+          example: 1
+        institution:
+          type: string
+          example: Cairo University
+        degree:
+          type: string
+          example: Bachelor of Science
+        field_of_study:
+          type: string
+          example: Computer Science
+        start_date:
+          type: string
+          format: date
+          example: '2016-09-01'
+        end_date:
+          type: string
+          format: date
+          nullable: true
+          example: '2020-06-30'
+        is_current:
+          type: boolean
+          example: false
+        grade:
+          type: string
+          nullable: true
+          example: '3.8 GPA'
+
+    EducationInput:
+      type: object
+      required: [institution, degree, field_of_study, start_date]
+      properties:
+        institution:
+          type: string
+          example: Cairo University
+        degree:
+          type: string
+          example: Bachelor of Science
+        field_of_study:
+          type: string
+          example: Computer Science
+        start_date:
+          type: string
+          format: date
+          example: '2016-09-01'
+        end_date:
+          type: string
+          format: date
+        is_current:
+          type: boolean
+        grade:
+          type: string
+
+    UpdateEducationInput:
+      type: object
+      properties:
+        institution:
+          type: string
+        degree:
+          type: string
+        field_of_study:
+          type: string
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        is_current:
+          type: boolean
+        grade:
+          type: string
+
+    Experience:
+      type: object
+      required: [id, candidate_id, company_name, job_title, start_date]
+      properties:
+        id:
+          type: integer
+          example: 1
+        candidate_id:
+          type: integer
+          example: 1
+        company_name:
+          type: string
+          example: Tech Innovators
+        job_title:
+          type: string
+          example: Senior Backend Engineer
+        start_date:
+          type: string
+          format: date
+          example: '2022-01-01'
+        end_date:
+          type: string
+          format: date
+          nullable: true
+        is_current:
+          type: boolean
+          example: true
+        description:
+          type: string
+          example: Architected microservices and REST APIs handling 1M daily requests.
+        location:
+          type: string
+          example: Cairo, Egypt
+
+    ExperienceInput:
+      type: object
+      required: [company_name, job_title, start_date]
+      properties:
+        company_name:
+          type: string
+        job_title:
+          type: string
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        is_current:
+          type: boolean
+        description:
+          type: string
+        location:
+          type: string
+
+    UpdateExperienceInput:
+      type: object
+      properties:
+        company_name:
+          type: string
+        job_title:
+          type: string
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        is_current:
+          type: boolean
+        description:
+          type: string
+        location:
+          type: string
+
+    Project:
+      type: object
+      required: [id, candidate_id, title]
+      properties:
+        id:
+          type: integer
+          example: 1
+        candidate_id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: Distributed Cache System
+        description:
+          type: string
+          example: Implemented Redis-compatible in-memory caching engine in Node.js.
+        url:
+          type: string
+          nullable: true
+          example: 'https://github.com/candidate/cache-engine'
+        start_date:
+          type: string
+          format: date
+          nullable: true
+        end_date:
+          type: string
+          format: date
+          nullable: true
+
+    ProjectInput:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        url:
+          type: string
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+
+    UpdateProjectInput:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        url:
+          type: string
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+
+    CvDocument:
+      type: object
+      required: [id, candidate_id, file_name, status]
+      properties:
+        id:
+          type: integer
+          example: 1
+        candidate_id:
+          type: integer
+          example: 1
+        file_name:
+          type: string
+          example: Ahmed_Wael_CV.pdf
+        status:
+          type: string
+          enum: [uploaded, processing, parsed, failed, verified]
+          example: parsed
+        parsed_data:
+          type: object
+          nullable: true
+        error_message:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    CvImprovement:
+      type: object
+      required: [id, candidate_id, overall_score]
+      properties:
+        id:
+          type: integer
+          example: 1
+        candidate_id:
+          type: integer
+          example: 1
+        target_role:
+          type: string
+          example: Senior Backend Engineer
+        overall_score:
+          type: integer
+          example: 82
+        critique:
+          type: object
+          properties:
+            ats_readability:
+              type: integer
+              example: 90
+            action_verbs:
+              type: array
+              items:
+                type: string
+            missing_keywords:
+              type: array
+              items:
+                type: string
+            recommendations:
+              type: array
+              items:
+                type: string
+        created_at:
+          type: string
+          format: date-time
+
+    Company:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: NileTech Solutions
+        website:
+          type: string
+          nullable: true
+          example: 'https://niletech.example.com'
+        industry:
+          type: string
+          nullable: true
+          example: Information Technology
+        description:
+          type: string
+          nullable: true
+        location:
+          type: string
+          nullable: true
+          example: Cairo, Egypt
+        created_at:
+          type: string
+          format: date-time
+
+    JobPost:
+      type: object
+      required: [id, title, company_id, employment_type, status]
+      properties:
+        id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: Senior Backend Engineer
+        company_id:
+          type: integer
+          example: 1
+        company:
+          $ref: '#/components/schemas/Company'
+        description:
+          type: string
+          example: We are seeking an experienced Backend Engineer to lead API development...
+        location:
+          type: string
+          example: Cairo, Egypt
+        is_remote:
+          type: boolean
+          example: true
+        employment_type:
+          type: string
+          enum: [full_time, part_time, contract, freelance, internship]
+          example: full_time
+        experience_level:
+          type: string
+          enum: [entry, mid, senior, lead, executive]
+          example: senior
+        salary_min:
+          type: number
+          nullable: true
+          example: 4000
+        salary_max:
+          type: number
+          nullable: true
+          example: 5500
+        salary_currency:
+          type: string
+          nullable: true
+          example: USD
+        status:
+          type: string
+          enum: [draft, published, closed, archived]
+          example: published
+        is_saved:
+          type: boolean
+          example: false
+        match_score:
+          type: number
+          nullable: true
+          example: 88.5
+        required_skills:
+          type: array
+          items:
+            $ref: '#/components/schemas/Skill'
+        created_at:
+          type: string
+          format: date-time
+
+    JobMatch:
+      type: object
+      required: [id, candidate_id, job_post_id, overall_score]
+      properties:
+        id:
+          type: integer
+          example: 1
+        candidate_id:
+          type: integer
+          example: 1
+        job_post_id:
+          type: integer
+          example: 10
+        overall_score:
+          type: number
+          example: 87.5
+        skills_score:
+          type: number
+          example: 90.0
+        experience_score:
+          type: number
+          example: 85.0
+        preferences_score:
+          type: number
+          example: 88.0
+        matched_skills:
+          type: array
+          items:
+            $ref: '#/components/schemas/Skill'
+        missing_skills:
+          type: array
+          items:
+            $ref: '#/components/schemas/Skill'
+        recommendations:
+          type: array
+          items:
+            type: string
+        calculated_at:
+          type: string
+          format: date-time
+
+    Application:
+      type: object
+      required: [id, candidate_id, job_post_id, status]
+      properties:
+        id:
+          type: integer
+          example: 1
+        candidate_id:
+          type: integer
+          example: 1
+        job_post_id:
+          type: integer
+          example: 10
+        cv_document_id:
+          type: integer
+          nullable: true
+          example: 2
+        status:
+          type: string
+          enum: [submitted, under_review, interviewing, offered, rejected, withdrawn]
+          example: submitted
+        cover_letter:
+          type: string
+          nullable: true
+        candidate_notes:
+          type: string
+          nullable: true
+        admin_notes:
+          type: string
+          nullable: true
+        job_post:
+          $ref: '#/components/schemas/JobPost'
+        created_at:
+          type: string
+          format: date-time
+
+    CreateApplicationRequest:
+      type: object
+      required: [job_post_id]
+      properties:
+        job_post_id:
+          type: integer
+          example: 10
+        cv_document_id:
+          type: integer
+          example: 2
+        cover_letter:
+          type: string
+          example: I am passionate about backend engineering and meet all required criteria...
+
+    Notification:
+      type: object
+      required: [id, user_id, title, message, is_read]
+      properties:
+        id:
+          type: integer
+          example: 1
+        user_id:
+          type: integer
+          example: 1
+        type:
+          type: string
+          example: application_status_changed
+        title:
+          type: string
+          example: Application Updated
+        message:
+          type: string
+          example: Your application for Senior Backend Engineer moved to Interviewing.
+        is_read:
+          type: boolean
+          example: false
+        data:
+          type: object
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    Roadmap:
+      type: object
+      required: [id, candidate_id, title, status]
+      properties:
+        id:
+          type: integer
+          example: 1
+        candidate_id:
+          type: integer
+          example: 1
+        target_role:
+          type: string
+          example: Cloud Architect
+        title:
+          type: string
+          example: Roadmap to Cloud Architect Mastery
+        description:
+          type: string
+          example: Strategic milestone plan covering Docker, Kubernetes, and AWS architecture.
+        status:
+          type: string
+          enum: [in_progress, completed, archived]
+          example: in_progress
+        completion_percentage:
+          type: number
+          example: 35.0
+        milestones:
+          type: array
+          items:
+            $ref: '#/components/schemas/RoadmapMilestone'
+        created_at:
+          type: string
+          format: date-time
+
+    RoadmapMilestone:
+      type: object
+      required: [id, roadmap_id, title]
+      properties:
+        id:
+          type: integer
+          example: 1
+        roadmap_id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: Containerization & Cloud Fundamentals
+        order:
+          type: integer
+          example: 1
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/RoadmapTask'
+
+    RoadmapTask:
+      type: object
+      required: [id, title, is_completed]
+      properties:
+        id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: Complete Docker Compose multi-service architecture lab
+        description:
+          type: string
+          example: Containerize Node.js Express server and MySQL database.
+        estimated_hours:
+          type: number
+          example: 6
+        is_completed:
+          type: boolean
+          example: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    CreateRoadmapRequest:
+      type: object
+      properties:
+        target_type:
+          type: string
+          enum: [role, job]
+          default: role
+          example: role
+          description: Whether the roadmap targets a desired career role or a specific job posting
+        target_role:
+          type: string
+          example: Backend Engineer
+          description: Target job title (required if target_type is role)
+        target_job_id:
+          type: integer
+          example: 1
+          description: Target job post ID (required if target_type is job)
+        job_post_id:
+          type: integer
+          example: 1
+          description: Alias for target_job_id
+        notes:
+          type: string
+          example: Focus on distributed systems and microservices architecture
+
+    MentorConversation:
+      type: object
+      required: [id, candidate_id, title]
+      properties:
+        id:
+          type: integer
+          example: 1
+        candidate_id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: Salary Negotiation Strategy
+        context_scope:
+          type: string
+          example: general
+        is_archived:
+          type: boolean
+          example: false
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/MentorMessage'
+        created_at:
+          type: string
+          format: date-time
+
+    MentorMessage:
+      type: object
+      required: [id, sender, content]
+      properties:
+        id:
+          type: integer
+          example: 1
+        conversation_id:
+          type: integer
+          example: 1
+        sender:
+          type: string
+          enum: [user, mentor]
+          example: mentor
+        content:
+          type: string
+          example: Research the salary benchmarks for your target market and focus on the value...
+        created_at:
+          type: string
+          format: date-time
+
+    MentorContextPreview:
+      type: object
+      required: [candidate, skills, career_preferences]
+      properties:
+        candidate:
+          $ref: '#/components/schemas/CandidateProfile'
+        skills:
+          type: array
+          items:
+            $ref: '#/components/schemas/CandidateSkill'
+        career_preferences:
+          $ref: '#/components/schemas/CareerPreference'
+        top_skill_gaps:
+          type: array
+          items:
+            type: string
+
+    InterviewSession:
+      type: object
+      required: [id, candidate_id, target_role, session_type]
+      properties:
+        id:
+          type: integer
+          example: 1
+        candidate_id:
+          type: integer
+          example: 1
+        target_role:
+          type: string
+          example: Senior Node.js Developer
+        session_type:
+          type: string
+          enum: [technical, behavioral, system_design]
+          example: technical
+        difficulty:
+          type: string
+          enum: [easy, medium, hard]
+          example: medium
+        status:
+          type: string
+          enum: [in_progress, completed]
+          example: in_progress
+        questions:
+          type: array
+          items:
+            type: object
+            properties:
+              question:
+                type: string
+              category:
+                type: string
+        evaluations:
+          type: array
+          items:
+            $ref: '#/components/schemas/InterviewEvaluation'
+        created_at:
+          type: string
+          format: date-time
+
+    StartInterviewSessionRequest:
+      type: object
+      required: [target_role, session_type]
+      properties:
+        target_role:
+          type: string
+          example: Senior Node.js Developer
+        session_type:
+          type: string
+          enum: [technical, behavioral, system_design]
+          example: technical
+        difficulty:
+          type: string
+          enum: [easy, medium, hard]
+          default: medium
+        job_post_id:
+          type: integer
+
+    InterviewEvaluation:
+      type: object
+      required: [score, feedback]
+      properties:
+        question_index:
+          type: integer
+          example: 0
+        score:
+          type: number
+          example: 8.5
+        strengths:
+          type: array
+          items:
+            type: string
+          example: ['Clear explanation of event loop phases', 'Accurate libuv description']
+        improvements:
+          type: array
+          items:
+            type: string
+          example: ['Could mention cluster module and process fork overhead']
+        feedback:
+          type: string
+          example: Solid understanding of Node.js internals and asynchronous execution.
+
+    ApplicationStrategy:
+      type: object
+      required: [id, candidate_id, job_post_id, readiness_score]
+      properties:
+        id:
+          type: integer
+          example: 1
+        candidate_id:
+          type: integer
+          example: 1
+        job_post_id:
+          type: integer
+          example: 10
+        readiness_score:
+          type: number
+          example: 85.0
+        strengths:
+          type: array
+          items:
+            type: string
+        weaknesses:
+          type: array
+          items:
+            type: string
+        actionable_steps:
+          type: array
+          items:
+            type: string
+        customized_talking_points:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+
+    JobSource:
+      type: object
+      required: [id, name, source_type, is_active]
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: RemoteOK Ingestion Feed
+        source_type:
+          type: string
+          enum: [rss, api, scraper]
+          example: api
+        base_url:
+          type: string
+          example: 'https://remoteok.com/api'
+        is_active:
+          type: boolean
+          example: true
+        last_run_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    IngestionRun:
+      type: object
+      required: [id, job_source_id, status]
+      properties:
+        id:
+          type: integer
+          example: 1
+        job_source_id:
+          type: integer
+          example: 1
+        run_type:
+          type: string
+          example: manual
+        status:
+          type: string
+          enum: [running, completed, failed]
+          example: completed
+        jobs_ingested_count:
+          type: integer
+          example: 45
+        jobs_failed_count:
+          type: integer
+          example: 0
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    RawJob:
+      type: object
+      required: [id, job_source_id, title, status]
+      properties:
+        id:
+          type: integer
+          example: 1
+        job_source_id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: Senior Fullstack Engineer
+        company_name:
+          type: string
+          example: Global Tech Corp
+        external_id:
+          type: string
+          example: 'rem-9821'
+        status:
+          type: string
+          enum: [pending, processed, failed, skipped]
+          example: processed
+        raw_payload:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+
+    AiReviewItem:
+      type: object
+      required: [id, entity_type, status]
+      properties:
+        id:
+          type: integer
+          example: 1
+        entity_type:
+          type: string
+          example: cv_extraction
+        entity_id:
+          type: integer
+          example: 5
+        status:
+          type: string
+          enum: [pending, approved, corrected, rejected]
+          example: pending
+        ai_output:
+          type: object
+        human_corrections:
+          type: object
+          nullable: true
+        review_notes:
+          type: string
+          nullable: true
+        reviewed_by:
+          type: integer
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    AuditLog:
+      type: object
+      required: [id, action, entity_type]
+      properties:
+        id:
+          type: integer
+          example: 1
+        user_id:
+          type: integer
+          nullable: true
+          example: 1
+        action:
+          type: string
+          example: skill.merge
+        entity_type:
+          type: string
+          example: skill
+        entity_id:
+          type: integer
+          example: 12
+        ip_address:
+          type: string
+          example: '127.0.0.1'
+        details:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+
+    PlatformStatistics:
+      type: object
+      required: [total_candidates, total_jobs, total_applications]
+      properties:
+        total_candidates:
+          type: integer
+          example: 1250
+        total_jobs:
+          type: integer
+          example: 430
+        total_applications:
+          type: integer
+          example: 3120
+        total_matches_computed:
+          type: integer
+          example: 15400
+        active_crawlers_count:
+          type: integer
+          example: 6
+
+    SkillGapAnalysis:
+      type: object
+      required: [target_role, overall_match_percentage]
+      properties:
+        target_role:
+          type: string
+          example: Senior Backend Engineer
+        overall_match_percentage:
+          type: number
+          example: 76.5
+        matched_skills:
+          type: array
+          items:
+            $ref: '#/components/schemas/Skill'
+        missing_skills:
+          type: array
+          items:
+            $ref: '#/components/schemas/Skill'
+        suggested_courses_or_topics:
+          type: array
+          items:
+            type: string
+
+    SkillAlias:
+      type: object
+      required: [id, skill_id, alias]
+      properties:
+        id:
+          type: integer
+          example: 1
+        skill_id:
+          type: integer
+          example: 5
+        alias:
+          type: string
+          example: Node.js Express
+
+    VerifyCvExtractionRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [confirm, edit]
+          example: confirm
+        verified_skills:
+          type: array
+          items:
+            type: object
+            required: [name, proficiency_level]
+            properties:
+              name:
+                type: string
+              proficiency_level:
+                type: string
+                enum: [beginner, intermediate, advanced, expert]
+        verified_educations:
+          type: array
+          items:
+            $ref: '#/components/schemas/EducationInput'
+        verified_experiences:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExperienceInput'
+
+    AdminCreateSkillRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          example: PostgreSQL
+        category:
+          type: string
+          example: Database
+        description:
+          type: string
+          example: Object-relational SQL database
+
+    AdminUpdateSkillRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        category:
+          type: string
+        description:
+          type: string
+
+    AdminCreateCompanyRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          example: Acronym Corp
+        website:
+          type: string
+          example: 'https://acronym.example.com'
+        industry:
+          type: string
+          example: Cloud Software
+        description:
+          type: string
+        location:
+          type: string
+          example: Dubai, UAE
+
+    AdminUpdateCompanyRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        website:
+          type: string
+        industry:
+          type: string
+        description:
+          type: string
+        location:
+          type: string
+
+    AdminCreateJobPostRequest:
+      type: object
+      required: [title, company_id, employment_type, description]
+      properties:
+        title:
+          type: string
+          example: Senior Node.js Architect
+        company_id:
+          type: integer
+          example: 2
+        description:
+          type: string
+          example: Lead engineering teams in enterprise microservice transformation...
+        location:
+          type: string
+          example: Cairo, Egypt
+        is_remote:
+          type: boolean
+          example: true
+        employment_type:
+          type: string
+          enum: [full_time, part_time, contract, freelance, internship]
+          example: full_time
+        experience_level:
+          type: string
+          enum: [entry, mid, senior, lead, executive]
+          example: lead
+        salary_min:
+          type: number
+          example: 5000
+        salary_max:
+          type: number
+          example: 7000
+        salary_currency:
+          type: string
+          example: USD
+        status:
+          type: string
+          enum: [draft, published]
+          default: published
+        required_skill_ids:
+          type: array
+          items:
+            type: integer
+          example: [5, 12, 19]
+
+    AdminUpdateJobPostRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        company_id:
+          type: integer
+        description:
+          type: string
+        location:
+          type: string
+        is_remote:
+          type: boolean
+        employment_type:
+          type: string
+        experience_level:
+          type: string
+        salary_min:
+          type: number
+        salary_max:
+          type: number
+        salary_currency:
+          type: string
+        status:
+          type: string
+          enum: [draft, published, closed, archived]
+        required_skill_ids:
+          type: array
+          items:
+            type: integer
+
+    AdminComposeNotificationRequest:
+      type: object
+      required: [title, message]
+      properties:
+        user_ids:
+          type: array
+          items:
+            type: integer
+        role:
+          type: string
+          enum: [candidate, admin]
+        type:
+          type: string
+          default: system_broadcast
+        title:
+          type: string
+          example: Scheduled Maintenance Alert
+        message:
+          type: string
+          example: SkillMatch will perform routine database indexing tonight from 02:00 to 02:30 UTC.
+
+    AdminCreateJobSourceRequest:
+      type: object
+      required: [name, source_type]
+      properties:
+        name:
+          type: string
+          example: RemoteTechJobs API
+        source_type:
+          type: string
+          enum: [rss, api, scraper]
+          example: api
+        base_url:
+          type: string
+          example: 'https://remotetechjobs.com/api/v1'
+        is_active:
+          type: boolean
+          default: true
+        config:
+          type: object
+
+    AdminUpdateJobSourceRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        source_type:
+          type: string
+          enum: [rss, api, scraper]
+        base_url:
+          type: string
+        is_active:
+          type: boolean
+        config:
+          type: object

@@ -1,0 +1,29 @@
+{
+  "common": {
+    "success": "Action completed successfully.",
+    "notFound": "Resource not found.",
+    "unauthenticated": "Unauthenticated.",
+    "forbidden": "You do not have permission to perform this action.",
+    "serverError": "Internal server error. Please try again later.",
+    "validationFailed": "The given data was invalid.",
+    "tooManyRequests": "Too many requests. Please try again later."
+  },
+  "health": {
+    "status": "healthy",
+    "message": "SkillMatch API is healthy and operational."
+  },
+  "auth": {
+    "registerSuccess": "Registration successful. Please verify your email using the OTP sent.",
+    "loginSuccess": "Login successful.",
+    "invalidCredentials": "The provided credentials do not match our records.",
+    "unverifiedEmail": "Please verify your email address before logging in.",
+    "emailVerified": "Email verified successfully.",
+    "otpInvalidOrExpired": "The verification code is invalid or has expired.",
+    "otpResent": "Verification code has been resent to your email.",
+    "passwordResetOtpSent": "Password reset code sent to your email.",
+    "passwordResetOtpVerified": "Password reset code verified successfully.",
+    "passwordResetSuccess": "Password has been reset successfully.",
+    "invalidResetToken": "The password reset token is invalid or expired.",
+    "accountDeactivated": "Your account has been deactivated. Please contact support."
+  }
+}
