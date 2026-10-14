@@ -22,6 +22,14 @@ module.exports = {
         allowNull: true
       });
     }
+
+    // Ensure avatar column exists
+    if (!tableInfo.avatar) {
+      await queryInterface.addColumn('candidate_profiles', 'avatar', {
+        type: Sequelize.STRING(255),
+        allowNull: true
+      });
+    }
   },
 
   down: async (queryInterface, Sequelize) => {

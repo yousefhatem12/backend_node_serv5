@@ -443,6 +443,9 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/UpdateCandidateProfileRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UpdateCandidateProfileRequest'
       responses:
         '200':
           content:
@@ -3548,6 +3551,16 @@ components:
         full_name:
           type: string
           example: Ahmed Wael
+        avatar:
+          type: string
+          nullable: true
+          example: '/uploads/avatars/avatar-demo.png'
+          description: Avatar photo URL (JPEG or PNG)
+        avater:
+          type: string
+          nullable: true
+          example: '/uploads/avatars/avatar-demo.png'
+          description: Alias for avatar photo
         phone:
           type: string
           example: '+201012345678'
@@ -3582,6 +3595,12 @@ components:
         full_name:
           type: string
           example: Ahmed Wael
+        avatar:
+          type: string
+          description: Avatar photo file upload (JPEG/PNG) or existing image URL
+        avater:
+          type: string
+          description: Alias for avatar photo upload (JPEG/PNG)
         phone:
           type: string
         headline:

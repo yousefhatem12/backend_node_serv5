@@ -16,12 +16,18 @@ class CandidateProfileService {
       where: { user_id: rawId },
       defaults: {
         user_id: rawId,
-        full_name: userInstance ? userInstance.name : null
+        full_name: userInstance ? userInstance.name : null,
+        avatar: userInstance ? userInstance.avatar : null
       }
     });
 
     if (!profile.full_name && userInstance && userInstance.name) {
       profile.full_name = userInstance.name;
+    }
+    if (!profile.avatar && userInstance && userInstance.avatar) {
+      profile.avatar = userInstance.avatar;
+    }
+    if (profile.changed && profile.changed()) {
       await profile.save();
     }
 
@@ -70,6 +76,17 @@ class CandidateProfileService {
       profile.full_name = cleanFullName;
       if (user && cleanFullName) {
         user.name = cleanFullName;
+        await user.save();
+      }
+    }
+
+    // Explicitly handle and persist avatar / avater
+    const avatarInput = data.avatar !== undefined ? data.avatar : data.avater;
+    if (avatarInput !== undefined) {
+      const cleanAvatar = avatarInput ? String(avatarInput).trim() : null;
+      profile.avatar = cleanAvatar;
+      if (user) {
+        user.avatar = cleanAvatar;
         await user.save();
       }
     }

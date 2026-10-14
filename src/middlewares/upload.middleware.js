@@ -124,8 +124,129 @@ function uploadCvMiddleware(req, res, next) {
   });
 }
 
+// --- AVATAR / AVATER PHOTO UPLOAD (JPEG, PNG) ---
+
+const avatarUploadDir = path.join(process.cwd(), 'uploads', 'avatars');
+if (!fs.existsSync(avatarUploadDir)) {
+  fs.mkdirSync(avatarUploadDir, { recursive: true });
+}
+
+const avatarStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, avatarUploadDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    cb(null, `avatar-${uniqueSuffix}${ext}`);
+  }
+});
+
+const allowedAvatarMimes = [
+  'image/jpeg',
+  'image/png',
+  'image/jpg',
+  'image/pjpeg',
+  'image/x-png'
+];
+
+const allowedAvatarExtensions = ['.jpeg', '.jpg', '.png'];
+
+const avatarFileFilter = (req, file, cb) => {
+  const ext = path.extname(file.originalname).toLowerCase();
+  const isAllowedExt = allowedAvatarExtensions.includes(ext);
+  const isAllowedMime = allowedAvatarMimes.includes(file.mimetype);
+
+  if (isAllowedExt && isAllowedMime) {
+    cb(null, true);
+  } else {
+    cb(new ValidationError('The avatar must be a file of type: jpeg, png, jpg.', {
+      avatar: ['The avatar must be a file of type: jpeg, png, jpg.'],
+      avater: ['The avater must be a file of type: jpeg, png, jpg.']
+    }));
+  }
+};
+
+const uploadAvatar = multer({
+  storage: avatarStorage,
+  limits: {
+    fileSize: maxFileSize
+  },
+  fileFilter: avatarFileFilter
+}).any();
+
+/**
+ * Express wrapper middleware for optional Avatar upload on candidate profile.
+ * Supports JPEG, JPG, and PNG files via fields: 'avatar', 'avater', 'photo', 'picture', 'image'.
+ * Passes through application/json requests smoothly.
+ */
+function uploadAvatarMiddleware(req, res, next) {
+  const contentType = req.headers['content-type'] || '';
+  if (!contentType.includes('multipart/form-data')) {
+    return next();
+  }
+
+  uploadAvatar(req, res, (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          const maxKb = Math.round(maxFileSize / 1024);
+          return res.status(422).json({
+            message: `The avatar must not be greater than ${maxKb} kilobytes.`,
+            errors: {
+              avatar: [`The avatar must not be greater than ${maxKb} kilobytes.`],
+              avater: [`The avater must not be greater than ${maxKb} kilobytes.`]
+            }
+          });
+        }
+        return res.status(422).json({
+          message: err.message,
+          errors: {
+            avatar: [err.message],
+            avater: [err.message]
+          }
+        });
+      }
+
+      if (err instanceof ValidationError || err.name === 'ValidationError') {
+        return res.status(err.statusCode || 422).json({
+          message: err.message,
+          errors: err.errors || {
+            avatar: [err.message],
+            avater: [err.message]
+          }
+        });
+      }
+
+      return next(err);
+    }
+
+    // Resolve whichever avatar field was provided
+    let uploadedFile = null;
+    if (Array.isArray(req.files) && req.files.length > 0) {
+      uploadedFile = req.files.find(f => ['avatar', 'avater', 'photo', 'picture', 'image'].includes(f.fieldname))
+        || req.files[0];
+    } else if (req.file) {
+      uploadedFile = req.file;
+    }
+
+    if (uploadedFile) {
+      req.file = uploadedFile;
+      const avatarUrl = `/uploads/avatars/${uploadedFile.filename}`;
+      req.body = req.body || {};
+      req.body.avatar = avatarUrl;
+      req.body.avater = avatarUrl;
+    }
+
+    next();
+  });
+}
+
 module.exports = {
   uploadCv,
   uploadCvMiddleware,
-  uploadDir
+  uploadDir,
+  uploadAvatar,
+  uploadAvatarMiddleware,
+  avatarUploadDir
 };

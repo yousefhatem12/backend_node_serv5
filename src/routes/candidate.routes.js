@@ -28,6 +28,8 @@ const {
   listJobsQuerySchema
 } = require('../validators');
 
+const { uploadAvatarMiddleware } = require('../middlewares/upload.middleware');
+
 // Protect all candidate routes: must be authenticated and active candidate
 router.use(authMiddleware, ensureActiveCandidate);
 
@@ -45,8 +47,8 @@ router.get('/skill-gaps', MatchController.getSkillGaps);
 
 // --- PROFILE & CAREER PREFERENCES ---
 router.get('/profile', CandidateProfileController.getProfile);
-router.patch('/profile', validate(updateProfileSchema), CandidateProfileController.updateProfile);
-router.put('/profile', validate(updateProfileSchema), CandidateProfileController.updateProfile);
+router.patch('/profile', uploadAvatarMiddleware, validate(updateProfileSchema), CandidateProfileController.updateProfile);
+router.put('/profile', uploadAvatarMiddleware, validate(updateProfileSchema), CandidateProfileController.updateProfile);
 
 router.get('/career-preferences', CandidateProfileController.getCareerPreferences);
 router.patch('/career-preferences', validate(updateCareerPreferencesSchema), CandidateProfileController.updateCareerPreferences);

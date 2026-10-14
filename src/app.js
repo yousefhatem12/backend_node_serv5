@@ -34,6 +34,7 @@ app.use((req, res, next) => {
   if (
     !parsedPath.startsWith('/api') &&
     !parsedPath.startsWith('/storage') &&
+    !parsedPath.startsWith('/uploads') &&
     !parsedPath.startsWith('/docs')
   ) {
     req.url = '/api' + (req.url.startsWith('/') ? req.url : '/' + req.url);
@@ -55,8 +56,9 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Localization middleware (Accept-Language parsing)
 app.use(localeMiddleware);
 
-// Static storage for uploads (CV files, etc.)
+// Static storage for uploads (CV files, avatars, etc.)
 app.use('/storage', express.static(path.resolve(config.storage.path)));
+app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
 
 // Convenience redirect: /docs -> /api/docs
 app.get('/docs', (req, res) => res.redirect('/api/docs'));

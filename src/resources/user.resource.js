@@ -9,6 +9,7 @@ class UserResource extends BaseResource {
       email: user.email,
       phone: user.phone || null,
       avatar: user.avatar || null,
+      avater: user.avatar || null,
       role: user.role,
       is_active: Boolean(user.is_active),
       email_verified_at: user.email_verified_at ? user.email_verified_at.toISOString() : null,
