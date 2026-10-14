@@ -74,7 +74,25 @@ router.get('/companies', validate(listCompaniesQuerySchema), CompanyController.a
 router.post('/companies', validate(createCompanySchema), CompanyController.adminCreate);
 router.get('/companies/:company', validate(companyParamSchema), CompanyController.adminShow);
 router.patch('/companies/:company', validate(companyParamSchema), validate(updateCompanySchema), CompanyController.adminUpdate);
+router.put('/companies/:company', validate(companyParamSchema), validate(updateCompanySchema), CompanyController.adminUpdate);
 router.post('/companies/:sourceCompany/merge', validate(sourceCompanyParamSchema), validate(mergeCompanySchema), CompanyController.adminMerge);
+
+// Company Verification Operations (supporting POST, PATCH, PUT)
+router.post('/companies/:company/verify', validate(companyParamSchema), CompanyController.adminVerify);
+router.patch('/companies/:company/verify', validate(companyParamSchema), CompanyController.adminVerify);
+router.put('/companies/:company/verify', validate(companyParamSchema), CompanyController.adminVerify);
+
+router.post('/companies/:company/reject', validate(companyParamSchema), CompanyController.adminReject);
+router.patch('/companies/:company/reject', validate(companyParamSchema), CompanyController.adminReject);
+router.put('/companies/:company/reject', validate(companyParamSchema), CompanyController.adminReject);
+
+router.post('/companies/:company/approve', validate(companyParamSchema), CompanyController.adminVerify);
+router.patch('/companies/:company/approve', validate(companyParamSchema), CompanyController.adminVerify);
+router.put('/companies/:company/approve', validate(companyParamSchema), CompanyController.adminVerify);
+
+router.post('/companies/:company/verification', validate(companyParamSchema), CompanyController.adminVerification);
+router.patch('/companies/:company/verification', validate(companyParamSchema), CompanyController.adminVerification);
+router.put('/companies/:company/verification', validate(companyParamSchema), CompanyController.adminVerification);
 
 // --- JOBS MANAGEMENT ---
 router.get('/jobs', JobController.adminList);

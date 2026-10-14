@@ -193,6 +193,68 @@ class CompanyService {
       merged_source_id: Number(sourceCompanyId)
     };
   }
+
+  /**
+   * Verify company
+   */
+  async verifyCompany(companyId, actorId = null, req = null) {
+    const company = await db.Company.findByPk(companyId);
+    if (!company) {
+      throw new NotFoundError('Company not found.');
+    }
+
+    const oldVerified = company.is_verified;
+    company.is_verified = true;
+    await company.save();
+
+    if (actorId) {
+      try {
+        const AuditLogService = require('./auditLog.service');
+        await AuditLogService.logAction({
+          actorId,
+          action: 'company.verify',
+          entityType: 'company',
+          entityId: company.id,
+          oldValues: { is_verified: oldVerified },
+          newValues: { is_verified: true },
+          req
+        });
+      } catch (_) {}
+    }
+
+    return this.getCompany(company.id);
+  }
+
+  /**
+   * Reject company verification
+   */
+  async rejectCompany(companyId, reason = null, actorId = null, req = null) {
+    const company = await db.Company.findByPk(companyId);
+    if (!company) {
+      throw new NotFoundError('Company not found.');
+    }
+
+    const oldVerified = company.is_verified;
+    company.is_verified = false;
+    await company.save();
+
+    if (actorId) {
+      try {
+        const AuditLogService = require('./auditLog.service');
+        await AuditLogService.logAction({
+          actorId,
+          action: 'company.reject',
+          entityType: 'company',
+          entityId: company.id,
+          oldValues: { is_verified: oldVerified },
+          newValues: { is_verified: false, reason },
+          req
+        });
+      } catch (_) {}
+    }
+
+    return this.getCompany(company.id);
+  }
 }
 
 module.exports = new CompanyService();

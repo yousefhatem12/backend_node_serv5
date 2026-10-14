@@ -18,10 +18,11 @@ const applicationStrategyRoutes = require('./applicationStrategy.routes');
 const docsRoutes = require('./docs.routes');
 
 const authMiddleware = require('../middlewares/auth.middleware');
-const { ensureActiveCandidate } = require('../middlewares/roles.middleware');
+const { ensureActiveCandidate, ensureActiveAdmin } = require('../middlewares/roles.middleware');
 const JobController = require('../controllers/job.controller');
+const CompanyController = require('../controllers/company.controller');
 const RoadmapController = require('../controllers/roadmap.controller');
-const { validate, roadmapTaskParamSchema, completeRoadmapTaskSchema } = require('../validators');
+const { validate, roadmapTaskParamSchema, completeRoadmapTaskSchema, companyParamSchema } = require('../validators');
 
 // Set _mountPath for route reflection and documentation coverage
 healthRoutes._mountPath = '';
@@ -71,5 +72,22 @@ router.patch(
   validate(completeRoadmapTaskSchema),
   RoadmapController.completeTask
 );
+
+// Direct Company Verification routes (accessible with or without /admin prefix)
+router.post('/companies/:company/verify', authMiddleware, ensureActiveAdmin, validate(companyParamSchema), CompanyController.adminVerify);
+router.patch('/companies/:company/verify', authMiddleware, ensureActiveAdmin, validate(companyParamSchema), CompanyController.adminVerify);
+router.put('/companies/:company/verify', authMiddleware, ensureActiveAdmin, validate(companyParamSchema), CompanyController.adminVerify);
+
+router.post('/companies/:company/reject', authMiddleware, ensureActiveAdmin, validate(companyParamSchema), CompanyController.adminReject);
+router.patch('/companies/:company/reject', authMiddleware, ensureActiveAdmin, validate(companyParamSchema), CompanyController.adminReject);
+router.put('/companies/:company/reject', authMiddleware, ensureActiveAdmin, validate(companyParamSchema), CompanyController.adminReject);
+
+router.post('/companies/:company/approve', authMiddleware, ensureActiveAdmin, validate(companyParamSchema), CompanyController.adminVerify);
+router.patch('/companies/:company/approve', authMiddleware, ensureActiveAdmin, validate(companyParamSchema), CompanyController.adminVerify);
+router.put('/companies/:company/approve', authMiddleware, ensureActiveAdmin, validate(companyParamSchema), CompanyController.adminVerify);
+
+router.post('/companies/:company/verification', authMiddleware, ensureActiveAdmin, validate(companyParamSchema), CompanyController.adminVerification);
+router.patch('/companies/:company/verification', authMiddleware, ensureActiveAdmin, validate(companyParamSchema), CompanyController.adminVerification);
+router.put('/companies/:company/verification', authMiddleware, ensureActiveAdmin, validate(companyParamSchema), CompanyController.adminVerification);
 
 module.exports = router;

@@ -198,6 +198,14 @@ describe('Admin Full CRUD Controller & Route Unit Tests', () => {
     adminRouter.get('/companies/:company', CompanyController.adminShow);
     adminRouter.patch('/companies/:company', CompanyController.adminUpdate);
     adminRouter.put('/companies/:company', CompanyController.adminUpdate);
+    adminRouter.post('/companies/:company/verify', CompanyController.adminVerify);
+    adminRouter.patch('/companies/:company/verify', CompanyController.adminVerify);
+    adminRouter.put('/companies/:company/verify', CompanyController.adminVerify);
+    adminRouter.post('/companies/:company/reject', CompanyController.adminReject);
+    adminRouter.patch('/companies/:company/reject', CompanyController.adminReject);
+    adminRouter.put('/companies/:company/reject', CompanyController.adminReject);
+    adminRouter.post('/companies/:company/verification', CompanyController.adminVerification);
+    adminRouter.patch('/companies/:company/verification', CompanyController.adminVerification);
 
     // 4. Public and Candidate Jobs Routes
     const jobsRouter = express.Router();
@@ -655,6 +663,81 @@ describe('Admin Full CRUD Controller & Route Unit Tests', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.data.name).toBe('Updated Startup Inc');
+    });
+
+    it('POST /api/admin/companies/:company/verify marks company as verified', async () => {
+      companyService.verifyCompany.mockResolvedValueOnce({
+        id: 5,
+        name: 'Verified Startup Inc',
+        industry: 'Fintech',
+        is_verified: true
+      });
+
+      const res = await request(app).post('/api/admin/companies/5/verify');
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('success');
+      expect(res.body.data.is_verified).toBe(true);
+      expect(companyService.verifyCompany).toHaveBeenCalledWith('5', 1, expect.anything());
+    });
+
+    it('PATCH /admin/companies/:company/verify marks company as verified without /api prefix', async () => {
+      companyService.verifyCompany.mockResolvedValueOnce({
+        id: 5,
+        name: 'Verified Startup Inc',
+        industry: 'Fintech',
+        is_verified: true
+      });
+
+      const res = await request(app).patch('/admin/companies/5/verify');
+      expect(res.status).toBe(200);
+      expect(res.body.data.is_verified).toBe(true);
+    });
+
+    it('POST /api/admin/companies/:company/reject marks company verification as rejected', async () => {
+      companyService.rejectCompany.mockResolvedValueOnce({
+        id: 5,
+        name: 'Rejected Startup Inc',
+        industry: 'Fintech',
+        is_verified: false
+      });
+
+      const res = await request(app)
+        .post('/api/admin/companies/5/reject')
+        .send({ reason: 'Invalid documentation provided' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('success');
+      expect(res.body.data.is_verified).toBe(false);
+      expect(companyService.rejectCompany).toHaveBeenCalledWith('5', 'Invalid documentation provided', 1, expect.anything());
+    });
+
+    it('PATCH /admin/companies/:company/reject marks company verification as rejected', async () => {
+      companyService.rejectCompany.mockResolvedValueOnce({
+        id: 5,
+        name: 'Rejected Startup Inc',
+        industry: 'Fintech',
+        is_verified: false
+      });
+
+      const res = await request(app).patch('/admin/companies/5/reject');
+      expect(res.status).toBe(200);
+      expect(res.body.data.is_verified).toBe(false);
+    });
+
+    it('POST /api/admin/companies/:company/verification toggles verification based on payload', async () => {
+      companyService.verifyCompany.mockResolvedValueOnce({
+        id: 5,
+        name: 'Verified Startup Inc',
+        industry: 'Fintech',
+        is_verified: true
+      });
+
+      const res = await request(app)
+        .post('/api/admin/companies/5/verification')
+        .send({ is_verified: true });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.is_verified).toBe(true);
     });
   });
 });

@@ -1,6 +1,6 @@
 const companyService = require('../services/company.service');
 const CompanyResource = require('../resources/company.resource');
-const { success, paginated, buildPaginationMeta } = require('../utils/response');
+const { success, actionSuccess, paginated, buildPaginationMeta } = require('../utils/response');
 
 class CompanyController {
   /**
@@ -73,6 +73,52 @@ class CompanyController {
           merged_source_id: result.merged_source_id
         }
       });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST/PATCH /api/admin/companies/:company/verify
+   */
+  static async adminVerify(req, res, next) {
+    try {
+      const companyId = req.params.company || req.params.id;
+      const company = await companyService.verifyCompany(companyId, req.user?.id, req);
+      return actionSuccess(res, 'Company verified successfully.', CompanyResource.toArray(company));
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST/PATCH /api/admin/companies/:company/reject
+   */
+  static async adminReject(req, res, next) {
+    try {
+      const companyId = req.params.company || req.params.id;
+      const reason = req.body?.reason || req.body?.rejection_reason || req.body?.decision_reason || null;
+      const company = await companyService.rejectCompany(companyId, reason, req.user?.id, req);
+      return actionSuccess(res, 'Company verification rejected.', CompanyResource.toArray(company));
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST/PATCH /api/admin/companies/:company/verification
+   */
+  static async adminVerification(req, res, next) {
+    try {
+      const companyId = req.params.company || req.params.id;
+      const isVerified = req.body.is_verified !== undefined
+        ? Boolean(req.body.is_verified)
+        : (req.body.status === 'verified' || req.body.status === 'approved');
+      const company = isVerified
+        ? await companyService.verifyCompany(companyId, req.user?.id, req)
+        : await companyService.rejectCompany(companyId, req.body?.reason, req.user?.id, req);
+      const message = isVerified ? 'Company verified successfully.' : 'Company verification rejected.';
+      return actionSuccess(res, message, CompanyResource.toArray(company));
     } catch (err) {
       next(err);
     }
