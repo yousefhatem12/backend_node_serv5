@@ -30,10 +30,22 @@ try {
 class DocsController {
   /**
    * GET /api/docs/openapi.json
-   * Returns the parsed OpenAPI 3.0 specification as JSON
+   * Returns the parsed OpenAPI 3.0 specification as JSON with security/lock icons removed for free testing
    */
   static getSpec(req, res) {
-    const spec = loadSpec();
+    const raw = loadSpec();
+    const spec = JSON.parse(JSON.stringify(raw));
+    delete spec.security;
+    if (spec.components && spec.components.securitySchemes) {
+      delete spec.components.securitySchemes;
+    }
+    if (spec.paths) {
+      for (const pathKey of Object.keys(spec.paths)) {
+        for (const method of Object.keys(spec.paths[pathKey])) {
+          delete spec.paths[pathKey][method].security;
+        }
+      }
+    }
     return res.status(200).json(spec);
   }
 
@@ -72,6 +84,15 @@ class DocsController {
     .swagger-ui .topbar-wrapper img {
       content: url('https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.18.2/favicon-32x32.png');
     }
+    /* Hide lock icons and authorize button for free testing */
+    .swagger-ui .auth-wrapper,
+    .swagger-ui .authorization__btn,
+    .swagger-ui button.btn.authorize,
+    .swagger-ui .unlocked,
+    .swagger-ui .locked,
+    .swagger-ui svg.locked {
+      display: none !important;
+    }
   </style>
 </head>
 <body>
@@ -96,8 +117,7 @@ class DocsController {
         plugins: [
           SwaggerUIBundle.plugins.DownloadUrl
         ],
-        layout: 'StandaloneLayout',
-        persistAuthorization: true
+        layout: 'StandaloneLayout'
       });
     };
   </script>

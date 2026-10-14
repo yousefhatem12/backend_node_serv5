@@ -20,9 +20,6 @@ servers:
   - url: /api
     description: SkillMatch API Server (Relative path works behind any domain, tunnel, or reverse proxy)
 
-security:
-  - BearerAuth: []
-
 tags:
   - name: Health
     description: System baseline, uptime, and database health status
@@ -3182,16 +3179,6 @@ paths:
                 required: [data]
 
 components:
-  securitySchemes:
-    BearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-      description: |
-        Paste your JWT access token here. Role requirements:
-        - Candidate routes require a token with `role: candidate`
-        - Admin routes require a token with `role: admin` or `super_admin`
-
   parameters:
     AcceptLanguage:
       name: Accept-Language
