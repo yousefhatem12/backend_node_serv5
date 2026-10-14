@@ -68,6 +68,31 @@ describe('AiClientService Unit Tests', () => {
     });
   });
 
+  describe('extractCvFile', () => {
+    it('invokes POST /api/v1/cv/extract-file with FormData without corrupting Content-Type', async () => {
+      mockAxiosInstance.post.mockResolvedValueOnce({
+        data: {
+          candidate_id: 'cand_1',
+          user: { name: 'Ahmed' },
+          candidate_skills: [{ name: 'JavaScript' }]
+        }
+      });
+
+      const buffer = Buffer.from('PDF_MOCK_CONTENT');
+      const result = await aiClient.extractCvFile(buffer, 'resume.pdf', 'cand_1');
+
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        '/api/v1/cv/extract-file',
+        expect.any(Object)
+      );
+      expect(result.candidate_id).toBe('cand_1');
+    });
+
+    it('throws error when fileInput is missing', async () => {
+      await expect(aiClient.extractCvFile(null)).rejects.toThrow('fileInput is required');
+    });
+  });
+
   describe('analyzeCvImprovement', () => {
     it('invokes POST /api/v1/cv-improvement/analyze', async () => {
       mockAxiosInstance.post.mockResolvedValueOnce({

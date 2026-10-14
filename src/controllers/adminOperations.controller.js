@@ -97,6 +97,24 @@ class AdminOperationsController {
   }
 
   /**
+   * DELETE /api/admin/users/:user
+   * Accessible by admin and super_admin
+   */
+  static async deleteUser(req, res, next) {
+    try {
+      const userId = req.params.user || req.params.id || req.params.userId;
+      const result = await AdminOperationsService.deleteUser(
+        userId,
+        req.user?.id,
+        req
+      );
+      return actionSuccess(res, 'User deleted successfully.', result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
    * GET /api/admin/audit-logs
    */
   static async listAuditLogs(req, res, next) {

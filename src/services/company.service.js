@@ -198,7 +198,21 @@ class CompanyService {
    * Verify company
    */
   async verifyCompany(companyId, actorId = null, req = null) {
-    const company = await db.Company.findByPk(companyId);
+    let company = null;
+    if (!isNaN(companyId)) {
+      company = await db.Company.findByPk(companyId);
+    }
+    if (!company) {
+      company = await db.Company.findOne({
+        where: {
+          [db.Sequelize.Op.or]: [
+            { id: isNaN(companyId) ? 0 : Number(companyId) },
+            { name: String(companyId) },
+            { normalized_name: String(companyId).toLowerCase().trim() }
+          ]
+        }
+      });
+    }
     if (!company) {
       throw new NotFoundError('Company not found.');
     }
@@ -229,7 +243,21 @@ class CompanyService {
    * Reject company verification
    */
   async rejectCompany(companyId, reason = null, actorId = null, req = null) {
-    const company = await db.Company.findByPk(companyId);
+    let company = null;
+    if (!isNaN(companyId)) {
+      company = await db.Company.findByPk(companyId);
+    }
+    if (!company) {
+      company = await db.Company.findOne({
+        where: {
+          [db.Sequelize.Op.or]: [
+            { id: isNaN(companyId) ? 0 : Number(companyId) },
+            { name: String(companyId) },
+            { normalized_name: String(companyId).toLowerCase().trim() }
+          ]
+        }
+      });
+    }
     if (!company) {
       throw new NotFoundError('Company not found.');
     }

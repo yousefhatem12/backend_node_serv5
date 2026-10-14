@@ -41,46 +41,83 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
+const config = require('../config/env');
+
+const maxFileSize = (config.storage && config.storage.uploadMaxMb ? config.storage.uploadMaxMb : 5) * 1024 * 1024;
+
+// Accept 'cv', 'cv_file', or any client field name without 'Unexpected field' errors
 const uploadCv = multer({
   storage,
   limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB
+    fileSize: maxFileSize
   },
   fileFilter
-}).single('cv');
+}).any();
 
 /**
- * Express wrapper middleware to handle Multer errors with Laravel-compatible 422 JSON
+ * Express wrapper middleware to handle Multer errors with Laravel-compatible 422 JSON.
+ * Supports both 'cv' and 'cv_file' field names simultaneously.
  */
 function uploadCvMiddleware(req, res, next) {
   uploadCv(req, res, (err) => {
     if (err) {
       if (err instanceof multer.MulterError) {
         if (err.code === 'LIMIT_FILE_SIZE') {
+          const maxKb = Math.round(maxFileSize / 1024);
           return res.status(422).json({
-            message: 'The cv must not be greater than 5120 kilobytes.',
+            message: `The cv must not be greater than ${maxKb} kilobytes.`,
             errors: {
-              cv: ['The cv must not be greater than 5120 kilobytes.']
+              cv: [`The cv must not be greater than ${maxKb} kilobytes.`],
+              cv_file: [`The cv_file must not be greater than ${maxKb} kilobytes.`]
             }
           });
         }
         return res.status(422).json({
           message: err.message,
           errors: {
-            cv: [err.message]
+            cv: [err.message],
+            cv_file: [err.message]
           }
         });
       }
       return next(err);
     }
 
-    if (!req.file) {
+    // Resolve whichever field was provided: cv, cv_file, file, or first uploaded file
+    let uploadedFile = null;
+    if (Array.isArray(req.files) && req.files.length > 0) {
+      uploadedFile = req.files.find(f => f.fieldname === 'cv')
+        || req.files.find(f => f.fieldname === 'cv_file')
+        || req.files.find(f => f.fieldname === 'file')
+        || req.files[0];
+    } else if (req.files && typeof req.files === 'object') {
+      uploadedFile = (req.files.cv && req.files.cv[0])
+        || (req.files.cv_file && req.files.cv_file[0])
+        || (req.files.file && req.files.file[0]);
+    } else if (req.file) {
+      uploadedFile = req.file;
+    }
+
+    if (!uploadedFile) {
       return res.status(422).json({
         message: 'The cv field is required.',
         errors: {
-          cv: ['The cv field is required.']
+          cv: ['The cv field is required.'],
+          cv_file: ['The cv_file field is required.']
         }
       });
+    }
+
+    // Populate req.file for downstream services and controllers
+    req.file = uploadedFile;
+
+    // Normalize req.files map so code checking req.files['cv'] or req.files['cv_file'] works
+    if (!req.files || Array.isArray(req.files)) {
+      req.files = {
+        cv: [uploadedFile],
+        cv_file: [uploadedFile],
+        file: [uploadedFile]
+      };
     }
 
     next();
@@ -88,6 +125,7 @@ function uploadCvMiddleware(req, res, next) {
 }
 
 module.exports = {
+  uploadCv,
   uploadCvMiddleware,
   uploadDir
 };

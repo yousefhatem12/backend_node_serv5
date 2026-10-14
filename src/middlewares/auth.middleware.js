@@ -7,7 +7,11 @@ const { ROLES } = require('../config/constants');
 
 async function getFreeTestingUser(req) {
   const url = (req.originalUrl || req.baseUrl || req.url || '').toLowerCase();
-  const isAdmin = url.includes('/admin');
+  const isAdmin = url.includes('/admin')
+    || url.includes('/verify')
+    || url.includes('/reject')
+    || url.includes('/approve')
+    || url.includes('/verification');
   const targetRole = isAdmin ? ROLES.ADMIN : ROLES.CANDIDATE;
 
   let user = null;

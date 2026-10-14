@@ -83,7 +83,7 @@ class CompanyController {
    */
   static async adminVerify(req, res, next) {
     try {
-      const companyId = req.params.company || req.params.id;
+      const companyId = req.params.company || req.params.id || req.params.companyId;
       const company = await companyService.verifyCompany(companyId, req.user?.id, req);
       return actionSuccess(res, 'Company verified successfully.', CompanyResource.toArray(company));
     } catch (err) {
@@ -96,7 +96,7 @@ class CompanyController {
    */
   static async adminReject(req, res, next) {
     try {
-      const companyId = req.params.company || req.params.id;
+      const companyId = req.params.company || req.params.id || req.params.companyId;
       const reason = req.body?.reason || req.body?.rejection_reason || req.body?.decision_reason || null;
       const company = await companyService.rejectCompany(companyId, reason, req.user?.id, req);
       return actionSuccess(res, 'Company verification rejected.', CompanyResource.toArray(company));
@@ -110,13 +110,32 @@ class CompanyController {
    */
   static async adminVerification(req, res, next) {
     try {
-      const companyId = req.params.company || req.params.id;
+      const companyId = req.params.company || req.params.id || req.params.companyId;
       const isVerified = req.body.is_verified !== undefined
         ? Boolean(req.body.is_verified)
-        : (req.body.status === 'verified' || req.body.status === 'approved');
+        : (req.body.status === 'verified' || req.body.status === 'approved' || req.body.action === 'verify');
       const company = isVerified
         ? await companyService.verifyCompany(companyId, req.user?.id, req)
-        : await companyService.rejectCompany(companyId, req.body?.reason, req.user?.id, req);
+        : await companyService.rejectCompany(companyId, req.body?.reason || req.body?.rejection_reason, req.user?.id, req);
+      const message = isVerified ? 'Company verified successfully.' : 'Company verification rejected.';
+      return actionSuccess(res, message, CompanyResource.toArray(company));
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST/PATCH/PUT /api/admin/companies/:company/status
+   */
+  static async adminStatus(req, res, next) {
+    try {
+      const companyId = req.params.company || req.params.id || req.params.companyId;
+      const isVerified = req.body.is_verified !== undefined
+        ? Boolean(req.body.is_verified)
+        : (['verified', 'approved', 'verify', 'approve'].includes(String(req.body.status || req.body.verification_status || req.body.action).toLowerCase()));
+      const company = isVerified
+        ? await companyService.verifyCompany(companyId, req.user?.id, req)
+        : await companyService.rejectCompany(companyId, req.body?.reason || req.body?.rejection_reason, req.user?.id, req);
       const message = isVerified ? 'Company verified successfully.' : 'Company verification rejected.';
       return actionSuccess(res, message, CompanyResource.toArray(company));
     } catch (err) {

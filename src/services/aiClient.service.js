@@ -38,8 +38,20 @@ class AiClientService {
       headers
     });
 
-    // Request logging interceptor without exposing credentials
+    // Request interceptor ensuring current API key and headers are always attached
     this.client.interceptors.request.use((reqConfig) => {
+      const activeKey = this.secretKey
+        || (config.ai && config.ai.secretKey)
+        || process.env.AI_SERVICE_SECRET_KEY
+        || process.env.AI_SERVICE_API_KEY;
+
+      if (activeKey) {
+        reqConfig.headers = reqConfig.headers || {};
+        reqConfig.headers['X-API-Key'] = activeKey;
+        if (!reqConfig.headers['Authorization']) {
+          reqConfig.headers['Authorization'] = `Bearer ${activeKey}`;
+        }
+      }
       logger.info(`[AI Client] Outgoing ${reqConfig.method?.toUpperCase()} ${reqConfig.url}`);
       return reqConfig;
     }, (error) => {
@@ -108,33 +120,94 @@ class AiClientService {
   }
 
   /**
-   * Extract candidate profile from CV document file upload
-   * POST /api/v1/cv/extract-file
+   * Build FormData object for file upload to FastAPI
    */
-  async extractCvFile(fileInput, filename = 'resume.pdf', candidateId = null) {
+  _buildCvFormData(fileInput, filename = 'resume.pdf', candidateId = null) {
+    if (!fileInput) {
+      throw new Error('fileInput is required for CV extraction.');
+    }
+
     const formData = new FormData();
+    let fileBuffer;
+    let effectiveFilename = filename;
+    let mimeType = 'application/pdf';
 
     if (typeof fileInput === 'string') {
-      // Local file path
-      const fileBuffer = fs.readFileSync(fileInput);
-      const fileBlob = new Blob([fileBuffer]);
-      formData.append('file', fileBlob, path.basename(fileInput));
+      fileBuffer = fs.readFileSync(fileInput);
+      effectiveFilename = filename || path.basename(fileInput);
     } else if (Buffer.isBuffer(fileInput)) {
-      const fileBlob = new Blob([fileInput]);
-      formData.append('file', fileBlob, filename);
-    } else {
-      formData.append('file', fileInput, filename);
+      fileBuffer = fileInput;
+      effectiveFilename = filename || 'resume.pdf';
+    } else if (fileInput && typeof fileInput === 'object') {
+      if (fileInput.path && fs.existsSync(fileInput.path)) {
+        fileBuffer = fs.readFileSync(fileInput.path);
+      } else if (fileInput.buffer) {
+        fileBuffer = fileInput.buffer;
+      }
+      effectiveFilename = fileInput.originalname || filename || 'resume.pdf';
+      mimeType = fileInput.mimetype || mimeType;
     }
+
+    if (!fileBuffer) {
+      throw new Error('Unable to read CV file buffer from input.');
+    }
+
+    const ext = path.extname(effectiveFilename).toLowerCase();
+    if (ext === '.pdf') {
+      mimeType = 'application/pdf';
+    } else if (ext === '.docx') {
+      mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    } else if (ext === '.doc') {
+      mimeType = 'application/msword';
+    } else if (ext === '.txt') {
+      mimeType = 'text/plain';
+    }
+
+    const fileBlob = new Blob([fileBuffer], { type: mimeType });
+    // Append 'file' as required by FastAPI Cloud /api/v1/cv/extract-file
+    formData.append('file', fileBlob, effectiveFilename);
+    // Also append 'cv' and 'cv_file' for multi-field endpoint compatibility
+    formData.append('cv', fileBlob, effectiveFilename);
+    formData.append('cv_file', fileBlob, effectiveFilename);
 
     if (candidateId) {
       formData.append('candidate_id', String(candidateId));
     }
 
-    const response = await this.client.post('/api/v1/cv/extract-file', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    });
+    return formData;
+  }
+
+  /**
+   * Extract candidate profile from CV document file upload
+   * POST /api/v1/cv/extract-file
+   * Accepts local file path, Buffer, or multer file object.
+   * Note: Let Axios set Content-Type with automatic boundary string to prevent payload corruption.
+   */
+  async extractCvFile(fileInput, filename = 'resume.pdf', candidateId = null) {
+    const formData = this._buildCvFormData(fileInput, filename, candidateId);
+    const response = await this.client.post('/api/v1/cv/extract-file', formData);
+    return response.data;
+  }
+
+  /**
+   * Queue CV file extraction as background job
+   * POST /api/v1/cv/extract-file-async
+   */
+  async extractCvFileAsync(fileInput, filename = 'resume.pdf', candidateId = null) {
+    const formData = this._buildCvFormData(fileInput, filename, candidateId);
+    const response = await this.client.post('/api/v1/cv/extract-file-async', formData);
+    return response.data;
+  }
+
+  /**
+   * Poll background CV extraction job status
+   * GET /api/v1/cv/jobs/{job_id}
+   */
+  async getCvJobStatus(jobId) {
+    if (!jobId) {
+      throw new Error('jobId is required.');
+    }
+    const response = await this.client.get(`/api/v1/cv/jobs/${jobId}`);
     return response.data;
   }
 

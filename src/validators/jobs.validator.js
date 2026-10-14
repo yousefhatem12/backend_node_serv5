@@ -75,10 +75,11 @@ const jobPostParamSchema = z.object({
 
 const companyParamSchema = z.object({
   params: z.object({
-    company: z.coerce.number().int().positive({ message: 'The company parameter must be a positive integer.' }).optional(),
-    id: z.coerce.number().int().positive({ message: 'The id parameter must be a positive integer.' }).optional()
-  }).refine(data => data.company !== undefined || data.id !== undefined, {
-    message: 'The company parameter must be a positive integer.'
+    company: z.union([z.coerce.number().int().positive(), z.string().min(1)]).optional(),
+    id: z.union([z.coerce.number().int().positive(), z.string().min(1)]).optional(),
+    companyId: z.union([z.coerce.number().int().positive(), z.string().min(1)]).optional()
+  }).refine(data => data.company !== undefined || data.id !== undefined || data.companyId !== undefined, {
+    message: 'The company parameter must be provided.'
   })
 });
 

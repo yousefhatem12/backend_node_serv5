@@ -77,7 +77,8 @@ router.patch('/companies/:company', validate(companyParamSchema), validate(updat
 router.put('/companies/:company', validate(companyParamSchema), validate(updateCompanySchema), CompanyController.adminUpdate);
 router.post('/companies/:sourceCompany/merge', validate(sourceCompanyParamSchema), validate(mergeCompanySchema), CompanyController.adminMerge);
 
-// Company Verification Operations (supporting POST, PATCH, PUT)
+// --- COMPANY VERIFICATION & REJECTION OPERATIONS ---
+// 1. Standard REST routes: /companies/:company/(verify|reject|approve|verification|status)
 router.post('/companies/:company/verify', validate(companyParamSchema), CompanyController.adminVerify);
 router.patch('/companies/:company/verify', validate(companyParamSchema), CompanyController.adminVerify);
 router.put('/companies/:company/verify', validate(companyParamSchema), CompanyController.adminVerify);
@@ -93,6 +94,85 @@ router.put('/companies/:company/approve', validate(companyParamSchema), CompanyC
 router.post('/companies/:company/verification', validate(companyParamSchema), CompanyController.adminVerification);
 router.patch('/companies/:company/verification', validate(companyParamSchema), CompanyController.adminVerification);
 router.put('/companies/:company/verification', validate(companyParamSchema), CompanyController.adminVerification);
+
+router.post('/companies/:company/status', validate(companyParamSchema), CompanyController.adminStatus);
+router.patch('/companies/:company/status', validate(companyParamSchema), CompanyController.adminStatus);
+router.put('/companies/:company/status', validate(companyParamSchema), CompanyController.adminStatus);
+
+// 2. Singular routes: /company/:company/(verify|reject|approve|verification|status)
+router.post('/company/:company/verify', validate(companyParamSchema), CompanyController.adminVerify);
+router.patch('/company/:company/verify', validate(companyParamSchema), CompanyController.adminVerify);
+router.put('/company/:company/verify', validate(companyParamSchema), CompanyController.adminVerify);
+
+router.post('/company/:company/reject', validate(companyParamSchema), CompanyController.adminReject);
+router.patch('/company/:company/reject', validate(companyParamSchema), CompanyController.adminReject);
+router.put('/company/:company/reject', validate(companyParamSchema), CompanyController.adminReject);
+
+router.post('/company/:company/approve', validate(companyParamSchema), CompanyController.adminVerify);
+router.patch('/company/:company/approve', validate(companyParamSchema), CompanyController.adminVerify);
+router.put('/company/:company/approve', validate(companyParamSchema), CompanyController.adminVerify);
+
+router.post('/company/:company/verification', validate(companyParamSchema), CompanyController.adminVerification);
+router.patch('/company/:company/verification', validate(companyParamSchema), CompanyController.adminVerification);
+router.put('/company/:company/verification', validate(companyParamSchema), CompanyController.adminVerification);
+
+router.post('/company/:company/status', validate(companyParamSchema), CompanyController.adminStatus);
+router.patch('/company/:company/status', validate(companyParamSchema), CompanyController.adminStatus);
+router.put('/company/:company/status', validate(companyParamSchema), CompanyController.adminStatus);
+
+// 3. Action-first routes: /(verify|reject)-company/:company and /companies/(verify|reject)/:company
+router.post('/companies/verify/:company', validate(companyParamSchema), CompanyController.adminVerify);
+router.patch('/companies/verify/:company', validate(companyParamSchema), CompanyController.adminVerify);
+router.put('/companies/verify/:company', validate(companyParamSchema), CompanyController.adminVerify);
+
+router.post('/companies/reject/:company', validate(companyParamSchema), CompanyController.adminReject);
+router.patch('/companies/reject/:company', validate(companyParamSchema), CompanyController.adminReject);
+router.put('/companies/reject/:company', validate(companyParamSchema), CompanyController.adminReject);
+
+router.post('/verify-company/:company', validate(companyParamSchema), CompanyController.adminVerify);
+router.patch('/verify-company/:company', validate(companyParamSchema), CompanyController.adminVerify);
+router.put('/verify-company/:company', validate(companyParamSchema), CompanyController.adminVerify);
+
+router.post('/reject-company/:company', validate(companyParamSchema), CompanyController.adminReject);
+router.patch('/reject-company/:company', validate(companyParamSchema), CompanyController.adminReject);
+router.put('/reject-company/:company', validate(companyParamSchema), CompanyController.adminReject);
+
+// 4. Verification-queue aliases: /company-verifications/:company/*, /verification-requests/:company/*
+router.post('/company-verifications/:company/verify', validate(companyParamSchema), CompanyController.adminVerify);
+router.patch('/company-verifications/:company/verify', validate(companyParamSchema), CompanyController.adminVerify);
+router.put('/company-verifications/:company/verify', validate(companyParamSchema), CompanyController.adminVerify);
+
+router.post('/company-verifications/:company/reject', validate(companyParamSchema), CompanyController.adminReject);
+router.patch('/company-verifications/:company/reject', validate(companyParamSchema), CompanyController.adminReject);
+router.put('/company-verifications/:company/reject', validate(companyParamSchema), CompanyController.adminReject);
+
+router.post('/company-verifications/:company/approve', validate(companyParamSchema), CompanyController.adminVerify);
+router.patch('/company-verifications/:company/approve', validate(companyParamSchema), CompanyController.adminVerify);
+router.put('/company-verifications/:company/approve', validate(companyParamSchema), CompanyController.adminVerify);
+
+router.post('/company-verification/:company/verify', validate(companyParamSchema), CompanyController.adminVerify);
+router.patch('/company-verification/:company/verify', validate(companyParamSchema), CompanyController.adminVerify);
+router.put('/company-verification/:company/verify', validate(companyParamSchema), CompanyController.adminVerify);
+
+router.post('/company-verification/:company/reject', validate(companyParamSchema), CompanyController.adminReject);
+router.patch('/company-verification/:company/reject', validate(companyParamSchema), CompanyController.adminReject);
+router.put('/company-verification/:company/reject', validate(companyParamSchema), CompanyController.adminReject);
+
+router.post('/verification-requests/:company/verify', validate(companyParamSchema), CompanyController.adminVerify);
+router.patch('/verification-requests/:company/verify', validate(companyParamSchema), CompanyController.adminVerify);
+router.put('/verification-requests/:company/verify', validate(companyParamSchema), CompanyController.adminVerify);
+
+router.post('/verification-requests/:company/reject', validate(companyParamSchema), CompanyController.adminReject);
+router.patch('/verification-requests/:company/reject', validate(companyParamSchema), CompanyController.adminReject);
+router.put('/verification-requests/:company/reject', validate(companyParamSchema), CompanyController.adminReject);
+
+router.post('/companies/:company/verify-request', validate(companyParamSchema), CompanyController.adminVerify);
+router.patch('/companies/:company/verify-request', validate(companyParamSchema), CompanyController.adminVerify);
+router.put('/companies/:company/verify-request', validate(companyParamSchema), CompanyController.adminVerify);
+
+router.post('/companies/:company/reject-request', validate(companyParamSchema), CompanyController.adminReject);
+router.patch('/companies/:company/reject-request', validate(companyParamSchema), CompanyController.adminReject);
+router.put('/companies/:company/reject-request', validate(companyParamSchema), CompanyController.adminReject);
 
 // --- JOBS MANAGEMENT ---
 router.get('/jobs', JobController.adminList);
@@ -155,6 +235,15 @@ router.patch('/users/:user/status', validate(adminUserParamSchema), validate(upd
 router.put('/users/:user/status', validate(adminUserParamSchema), validate(updateUserStatusSchema), AdminOperationsController.updateUserStatus);
 router.patch('/users/:user/role', validate(adminUserParamSchema), validate(updateUserRoleSchema), AdminOperationsController.updateUserRole);
 router.put('/users/:user/role', validate(adminUserParamSchema), validate(updateUserRoleSchema), AdminOperationsController.updateUserRole);
+router.delete('/users/:user', validate(adminUserParamSchema), AdminOperationsController.deleteUser);
+router.post('/users/:user/delete', validate(adminUserParamSchema), AdminOperationsController.deleteUser);
+
+// Singular /user aliases
+router.get('/user/:user', validate(adminUserParamSchema), AdminOperationsController.showUser);
+router.patch('/user/:user', validate(adminUserParamSchema), validate(updateAdminUserSchema), AdminOperationsController.updateUser);
+router.put('/user/:user', validate(adminUserParamSchema), validate(updateAdminUserSchema), AdminOperationsController.updateUser);
+router.delete('/user/:user', validate(adminUserParamSchema), AdminOperationsController.deleteUser);
+router.post('/user/:user/delete', validate(adminUserParamSchema), AdminOperationsController.deleteUser);
 
 // --- PLATFORM STATISTICS & DASHBOARD ---
 router.get('/statistics', AdminOperationsController.getStatistics);

@@ -174,6 +174,9 @@ describe('Admin Full CRUD Controller & Route Unit Tests', () => {
     adminRouter.put('/users/:user/status', validate(adminUserParamSchema), validate(updateUserStatusSchema), AdminOperationsController.updateUserStatus);
     adminRouter.patch('/users/:user/role', validate(adminUserParamSchema), validate(updateUserRoleSchema), AdminOperationsController.updateUserRole);
     adminRouter.put('/users/:user/role', validate(adminUserParamSchema), validate(updateUserRoleSchema), AdminOperationsController.updateUserRole);
+    adminRouter.delete('/users/:user', validate(adminUserParamSchema), AdminOperationsController.deleteUser);
+    adminRouter.post('/users/:user/delete', validate(adminUserParamSchema), AdminOperationsController.deleteUser);
+    adminRouter.delete('/user/:user', validate(adminUserParamSchema), AdminOperationsController.deleteUser);
 
     // 2. Jobs CRUD
     adminRouter.get('/jobs', JobController.adminList);
@@ -206,6 +209,14 @@ describe('Admin Full CRUD Controller & Route Unit Tests', () => {
     adminRouter.put('/companies/:company/reject', CompanyController.adminReject);
     adminRouter.post('/companies/:company/verification', CompanyController.adminVerification);
     adminRouter.patch('/companies/:company/verification', CompanyController.adminVerification);
+    adminRouter.post('/company/:company/verify', CompanyController.adminVerify);
+    adminRouter.patch('/company/:company/verify', CompanyController.adminVerify);
+    adminRouter.post('/company/:company/reject', CompanyController.adminReject);
+    adminRouter.patch('/company/:company/reject', CompanyController.adminReject);
+    adminRouter.post('/company-verifications/:company/verify', CompanyController.adminVerify);
+    adminRouter.post('/company-verifications/:company/reject', CompanyController.adminReject);
+    adminRouter.post('/companies/verify/:company', CompanyController.adminVerify);
+    adminRouter.post('/companies/reject/:company', CompanyController.adminReject);
 
     // 4. Public and Candidate Jobs Routes
     const jobsRouter = express.Router();
@@ -400,6 +411,64 @@ describe('Admin Full CRUD Controller & Route Unit Tests', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.data.is_active).toBe(false);
+    });
+
+    it('DELETE /api/admin/users/:user deletes user successfully', async () => {
+      AdminOperationsService.deleteUser.mockResolvedValueOnce({
+        id: 15,
+        name: 'Ahmed Wael',
+        email: 'ahmed.wael@example.com',
+        role: 'candidate'
+      });
+
+      const res = await request(app).delete('/api/admin/users/15');
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('success');
+      expect(res.body.message).toContain('deleted');
+      expect(res.body.data.id).toBe(15);
+      expect(AdminOperationsService.deleteUser).toHaveBeenCalledWith(15, 1, expect.anything());
+    });
+
+    it('DELETE /admin/users/:user deletes user without /api prefix', async () => {
+      AdminOperationsService.deleteUser.mockResolvedValueOnce({
+        id: 15,
+        name: 'Ahmed Wael',
+        email: 'ahmed.wael@example.com',
+        role: 'candidate'
+      });
+
+      const res = await request(app).delete('/admin/users/15');
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('success');
+      expect(res.body.data.id).toBe(15);
+    });
+
+    it('POST /admin/users/:user/delete deletes user via POST alias', async () => {
+      AdminOperationsService.deleteUser.mockResolvedValueOnce({
+        id: 15,
+        name: 'Ahmed Wael',
+        email: 'ahmed.wael@example.com',
+        role: 'candidate'
+      });
+
+      const res = await request(app).post('/admin/users/15/delete');
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('success');
+      expect(res.body.data.id).toBe(15);
+    });
+
+    it('DELETE /admin/user/:user deletes user via singular alias', async () => {
+      AdminOperationsService.deleteUser.mockResolvedValueOnce({
+        id: 15,
+        name: 'Ahmed Wael',
+        email: 'ahmed.wael@example.com',
+        role: 'candidate'
+      });
+
+      const res = await request(app).delete('/admin/user/15');
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('success');
+      expect(res.body.data.id).toBe(15);
     });
   });
 
@@ -736,6 +805,58 @@ describe('Admin Full CRUD Controller & Route Unit Tests', () => {
         .post('/api/admin/companies/5/verification')
         .send({ is_verified: true });
 
+      expect(res.status).toBe(200);
+      expect(res.body.data.is_verified).toBe(true);
+    });
+
+    it('POST /admin/company/:company/verify supports singular company route', async () => {
+      companyService.verifyCompany.mockResolvedValueOnce({
+        id: 5,
+        name: 'Verified Startup Inc',
+        industry: 'Fintech',
+        is_verified: true
+      });
+
+      const res = await request(app).post('/admin/company/5/verify');
+      expect(res.status).toBe(200);
+      expect(res.body.data.is_verified).toBe(true);
+    });
+
+    it('POST /admin/company/:company/reject supports singular company reject route', async () => {
+      companyService.rejectCompany.mockResolvedValueOnce({
+        id: 5,
+        name: 'Rejected Startup Inc',
+        industry: 'Fintech',
+        is_verified: false
+      });
+
+      const res = await request(app).post('/admin/company/5/reject');
+      expect(res.status).toBe(200);
+      expect(res.body.data.is_verified).toBe(false);
+    });
+
+    it('POST /admin/company-verifications/:company/verify supports verification queue alias', async () => {
+      companyService.verifyCompany.mockResolvedValueOnce({
+        id: 5,
+        name: 'Verified Startup Inc',
+        industry: 'Fintech',
+        is_verified: true
+      });
+
+      const res = await request(app).post('/admin/company-verifications/5/verify');
+      expect(res.status).toBe(200);
+      expect(res.body.data.is_verified).toBe(true);
+    });
+
+    it('POST /admin/companies/verify/:company supports action-first route', async () => {
+      companyService.verifyCompany.mockResolvedValueOnce({
+        id: 5,
+        name: 'Verified Startup Inc',
+        industry: 'Fintech',
+        is_verified: true
+      });
+
+      const res = await request(app).post('/admin/companies/verify/5');
       expect(res.status).toBe(200);
       expect(res.body.data.is_verified).toBe(true);
     });

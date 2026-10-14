@@ -76,7 +76,11 @@ const listAdminUsersQuerySchema = z.object({
 
 const adminUserParamSchema = z.object({
   params: z.object({
-    user: z.coerce.number().int().positive({ message: 'The user id must be a positive integer.' })
+    user: z.coerce.number().int().positive({ message: 'The user id must be a positive integer.' }).optional(),
+    id: z.coerce.number().int().positive({ message: 'The user id must be a positive integer.' }).optional(),
+    userId: z.coerce.number().int().positive({ message: 'The user id must be a positive integer.' }).optional()
+  }).refine(data => data.user !== undefined || data.id !== undefined || data.userId !== undefined, {
+    message: 'The user id must be a positive integer.'
   })
 });
 

@@ -3,7 +3,7 @@
 const db = require('../models');
 const crypto = require('crypto');
 const { Op, fn, col } = require('sequelize');
-const { NotFoundError, ValidationError } = require('../utils/errors');
+const { NotFoundError, ValidationError, ForbiddenError } = require('../utils/errors');
 const AuditLogService = require('./auditLog.service');
 const candidateProfileService = require('./candidateProfile.service');
 
@@ -354,6 +354,91 @@ class AdminOperationsService {
     }
 
     return user;
+  }
+
+  /**
+   * Delete user and associated records
+   * Accessible by Admin and Super Admin
+   */
+  static async deleteUser(userId, actorId, req = null) {
+    const user = await db.User.findByPk(userId);
+    if (!user) {
+      throw new NotFoundError('User not found.');
+    }
+
+    if (Number(userId) === Number(actorId)) {
+      throw new ValidationError('Cannot delete your own user account.');
+    }
+
+    if (user.role === 'super_admin') {
+      const actor = actorId ? await db.User.findByPk(actorId) : null;
+      if (actor && actor.role !== 'super_admin') {
+        throw new ForbiddenError('Only a super_admin can delete a super_admin account.');
+      }
+    }
+
+    const deletedUserData = {
+      id: Number(user.id),
+      name: user.name,
+      email: user.email,
+      role: user.role
+    };
+
+    if (db.sequelize && typeof db.sequelize.transaction === 'function') {
+      await db.sequelize.transaction(async (t) => {
+        // 1. Delete candidate profile and related records
+        if (db.CandidateProfile) {
+          const profile = await db.CandidateProfile.findOne({ where: { user_id: user.id }, transaction: t });
+          if (profile) {
+            if (db.CandidateSkill) await db.CandidateSkill.destroy({ where: { candidate_profile_id: profile.id }, transaction: t });
+            if (db.WorkExperience) await db.WorkExperience.destroy({ where: { candidate_profile_id: profile.id }, transaction: t });
+            if (db.Education) await db.Education.destroy({ where: { candidate_profile_id: profile.id }, transaction: t });
+            if (db.PortfolioItem) await db.PortfolioItem.destroy({ where: { candidate_profile_id: profile.id }, transaction: t });
+            if (db.CareerPreference) await db.CareerPreference.destroy({ where: { candidate_profile_id: profile.id }, transaction: t });
+            if (db.CvDocument) {
+              const docs = await db.CvDocument.findAll({ where: { candidate_profile_id: profile.id }, transaction: t });
+              const docIds = docs.map(d => d.id);
+              if (docIds.length > 0 && db.CvExtraction) {
+                await db.CvExtraction.destroy({ where: { cv_document_id: docIds }, transaction: t });
+              }
+              await db.CvDocument.destroy({ where: { candidate_profile_id: profile.id }, transaction: t });
+            }
+            await profile.destroy({ transaction: t });
+          }
+        }
+
+        // 2. Delete user notifications, matches, applications, etc.
+        if (db.Notification) await db.Notification.destroy({ where: { user_id: user.id }, transaction: t });
+        if (db.JobMatch) await db.JobMatch.destroy({ where: { user_id: user.id }, transaction: t });
+        if (db.SavedJob) await db.SavedJob.destroy({ where: { user_id: user.id }, transaction: t });
+        if (db.JobApplication) await db.JobApplication.destroy({ where: { user_id: user.id }, transaction: t });
+        if (db.Roadmap) await db.Roadmap.destroy({ where: { user_id: user.id }, transaction: t });
+        if (db.MentorConversation) await db.MentorConversation.destroy({ where: { user_id: user.id }, transaction: t });
+        if (db.InterviewPrepSession) await db.InterviewPrepSession.destroy({ where: { user_id: user.id }, transaction: t });
+        if (db.ApplicationStrategy) await db.ApplicationStrategy.destroy({ where: { user_id: user.id }, transaction: t });
+        if (db.CvImprovementAnalysis) await db.CvImprovementAnalysis.destroy({ where: { user_id: user.id }, transaction: t });
+
+        // 3. Destroy user
+        await user.destroy({ transaction: t });
+      });
+    } else {
+      await user.destroy();
+    }
+
+    try {
+      await AuditLogService.logAction({
+        actorId,
+        action: 'user.deleted',
+        entityType: 'User',
+        entityId: deletedUserData.id,
+        source: 'admin_portal',
+        oldValues: deletedUserData,
+        newValues: null,
+        req
+      });
+    } catch (_) {}
+
+    return deletedUserData;
   }
 
   /**
