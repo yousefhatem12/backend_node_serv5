@@ -6,10 +6,24 @@ class CandidateProfileService {
    * Find or initialize candidate profile for a user
    */
   async getOrCreateProfile(userId) {
+    const rawId = typeof userId === 'object' && userId ? userId.id : userId;
+    let userInstance = typeof userId === 'object' && userId && userId.name ? userId : null;
+    if (!userInstance && rawId) {
+      userInstance = await db.User.findByPk(rawId);
+    }
+
     let [profile] = await db.CandidateProfile.findOrCreate({
-      where: { user_id: userId },
-      defaults: { user_id: userId }
+      where: { user_id: rawId },
+      defaults: {
+        user_id: rawId,
+        full_name: userInstance ? userInstance.name : null
+      }
     });
+
+    if (!profile.full_name && userInstance && userInstance.name) {
+      profile.full_name = userInstance.name;
+      await profile.save();
+    }
 
     // Ensure default career preferences exist
     await db.CareerPreference.findOrCreate({
@@ -24,7 +38,7 @@ class CandidateProfileService {
    * Retrieve full candidate profile with portfolio items
    */
   async getFullProfile(user) {
-    const profile = await this.getOrCreateProfile(user.id);
+    const profile = await this.getOrCreateProfile(user);
     const fullProfile = await db.CandidateProfile.findOne({
       where: { id: profile.id },
       include: [
@@ -48,7 +62,18 @@ class CandidateProfileService {
    * Update candidate profile details
    */
   async updateProfile(user, data) {
-    const profile = await this.getOrCreateProfile(user.id);
+    const profile = await this.getOrCreateProfile(user);
+    
+    // Explicitly handle and persist full_name
+    if (data.full_name !== undefined) {
+      const cleanFullName = data.full_name ? data.full_name.trim() : null;
+      profile.full_name = cleanFullName;
+      if (user && cleanFullName) {
+        user.name = cleanFullName;
+        await user.save();
+      }
+    }
+
     Object.assign(profile, data);
     profile.checkCompletion();
     await profile.save();

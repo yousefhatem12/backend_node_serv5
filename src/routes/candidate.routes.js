@@ -46,6 +46,7 @@ router.get('/skill-gaps', MatchController.getSkillGaps);
 // --- PROFILE & CAREER PREFERENCES ---
 router.get('/profile', CandidateProfileController.getProfile);
 router.patch('/profile', validate(updateProfileSchema), CandidateProfileController.updateProfile);
+router.put('/profile', validate(updateProfileSchema), CandidateProfileController.updateProfile);
 
 router.get('/career-preferences', CandidateProfileController.getCareerPreferences);
 router.patch('/career-preferences', validate(updateCareerPreferencesSchema), CandidateProfileController.updateCareerPreferences);

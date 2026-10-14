@@ -21,6 +21,10 @@ module.exports = {
         onDelete: 'CASCADE',
         onUpdate: 'CASCADE'
       },
+      full_name: {
+        type: Sequelize.STRING(150),
+        allowNull: true
+      },
       date_of_birth: {
         type: Sequelize.DATEONLY,
         allowNull: true

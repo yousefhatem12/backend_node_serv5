@@ -10,6 +10,10 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       unique: true
     },
+    full_name: {
+      type: DataTypes.STRING(150),
+      allowNull: true
+    },
     date_of_birth: {
       type: DataTypes.DATEONLY,
       allowNull: true

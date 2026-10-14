@@ -83,12 +83,15 @@ describe('Phase 2 - Candidate Profile & Portfolio Integration Tests', () => {
       expect(res.status).toBe(200);
       expect(res.body).toHaveProperty('data');
       expect(res.body.data.profile_exists).toBe(true);
+      expect(res.body.data.full_name).toBe(candidateUser.name);
+      expect(res.body.data.profile.full_name).toBe(candidateUser.name);
       expect(res.body.data.user.id).toBe(candidateUser.id);
       expect(res.body.data.profile).toBeDefined();
     });
 
     test('PATCH /api/candidate/profile updates fields and sets profile_completed_at', async () => {
       const updateData = {
+        full_name: 'Ahmed Wael Senior',
         job_title: 'Full Stack Software Engineer',
         country: 'Egypt',
         state: 'Cairo',
@@ -105,6 +108,8 @@ describe('Phase 2 - Candidate Profile & Portfolio Integration Tests', () => {
         .set('Accept', 'application/json');
 
       expect(res.status).toBe(200);
+      expect(res.body.data.full_name).toBe('Ahmed Wael Senior');
+      expect(res.body.data.profile.full_name).toBe('Ahmed Wael Senior');
       expect(res.body.data.profile.job_title).toBe('Full Stack Software Engineer');
       expect(res.body.data.profile.country).toBe('Egypt');
       expect(res.body.data.profile.city).toBe('Nasr City');

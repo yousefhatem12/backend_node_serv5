@@ -3545,12 +3545,9 @@ components:
         user_id:
           type: integer
           example: 1
-        first_name:
+        full_name:
           type: string
-          example: Ahmed
-        last_name:
-          type: string
-          example: Wael
+          example: Ahmed Wael
         phone:
           type: string
           example: '+201012345678'
@@ -3582,10 +3579,9 @@ components:
     UpdateCandidateProfileRequest:
       type: object
       properties:
-        first_name:
+        full_name:
           type: string
-        last_name:
-          type: string
+          example: Ahmed Wael
         phone:
           type: string
         headline:

@@ -5,6 +5,7 @@ const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 const dateString = z.string().regex(dateRegex, 'Date must be in YYYY-MM-DD format.');
 
 const updateProfileSchema = z.object({
+  full_name: z.string().trim().min(1, 'Full name cannot be empty.').max(150, 'Full name must not exceed 150 characters.').nullish(),
   job_title: z.string().trim().max(150).nullish(),
   date_of_birth: dateString.nullish(),
   gender: z.enum(['male', 'female', 'other']).nullish(),

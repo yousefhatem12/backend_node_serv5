@@ -8,9 +8,12 @@ const CandidateSkillResource = require('./candidateSkill.resource');
 
 class CandidateProfileResource extends BaseResource {
   static toArray({ user, profile }) {
+    const fullName = (profile && profile.full_name) || (user && user.name) || null;
+
     if (!profile) {
       return {
         profile_exists: false,
+        full_name: fullName,
         user: UserResource.toArray(user),
         profile: null
       };
@@ -18,9 +21,11 @@ class CandidateProfileResource extends BaseResource {
 
     return {
       profile_exists: true,
+      full_name: fullName,
       user: UserResource.toArray(user),
       profile: {
         id: profile.id,
+        full_name: fullName,
         date_of_birth: profile.date_of_birth || null,
         gender: profile.gender || null,
         job_title: profile.job_title || null,
