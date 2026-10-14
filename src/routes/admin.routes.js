@@ -48,6 +48,8 @@ const {
   listAuditLogsQuerySchema,
   listAdminUsersQuerySchema,
   adminUserParamSchema,
+  createAdminUserSchema,
+  updateAdminUserSchema,
   updateUserStatusSchema,
   updateUserRoleSchema
 } = require('../validators');
@@ -75,9 +77,22 @@ router.patch('/companies/:company', validate(companyParamSchema), validate(updat
 router.post('/companies/:sourceCompany/merge', validate(sourceCompanyParamSchema), validate(mergeCompanySchema), CompanyController.adminMerge);
 
 // --- JOBS MANAGEMENT ---
+router.get('/jobs', JobController.adminList);
+router.get('/jobs/list', JobController.adminList);
+router.get('/jobs/all', JobController.adminList);
+router.get('/job-posts', JobController.adminList);
+router.get('/job-posts/list', JobController.adminList);
+router.get('/job-posts/all', JobController.adminList);
 router.post('/jobs', validate(createJobPostSchema), JobController.adminCreate);
+router.post('/job-posts', validate(createJobPostSchema), JobController.adminCreate);
 router.get('/jobs/:jobPost', validate(jobPostParamSchema), JobController.adminShow);
+router.get('/job-posts/:jobPost', validate(jobPostParamSchema), JobController.adminShow);
 router.patch('/jobs/:jobPost', validate(jobPostParamSchema), validate(updateJobPostSchema), JobController.adminUpdate);
+router.patch('/job-posts/:jobPost', validate(jobPostParamSchema), validate(updateJobPostSchema), JobController.adminUpdate);
+router.put('/jobs/:jobPost', validate(jobPostParamSchema), validate(updateJobPostSchema), JobController.adminUpdate);
+router.put('/job-posts/:jobPost', validate(jobPostParamSchema), validate(updateJobPostSchema), JobController.adminUpdate);
+router.delete('/jobs/:jobPost', validate(jobPostParamSchema), JobController.adminDelete);
+router.delete('/job-posts/:jobPost', validate(jobPostParamSchema), JobController.adminDelete);
 
 // --- NOTIFICATIONS COMPOSER ---
 router.post('/notifications/compose', validate(adminComposeNotificationSchema), NotificationController.adminCompose);
@@ -114,9 +129,14 @@ router.get('/audit-logs', validate(listAuditLogsQuerySchema), AdminOperationsCon
 
 // --- USER MANAGEMENT & MODERATION ---
 router.get('/users', validate(listAdminUsersQuerySchema), AdminOperationsController.listUsers);
+router.post('/users', validate(createAdminUserSchema), AdminOperationsController.createUser);
 router.get('/users/:user', validate(adminUserParamSchema), AdminOperationsController.showUser);
+router.patch('/users/:user', validate(adminUserParamSchema), validate(updateAdminUserSchema), AdminOperationsController.updateUser);
+router.put('/users/:user', validate(adminUserParamSchema), validate(updateAdminUserSchema), AdminOperationsController.updateUser);
 router.patch('/users/:user/status', validate(adminUserParamSchema), validate(updateUserStatusSchema), AdminOperationsController.updateUserStatus);
+router.put('/users/:user/status', validate(adminUserParamSchema), validate(updateUserStatusSchema), AdminOperationsController.updateUserStatus);
 router.patch('/users/:user/role', validate(adminUserParamSchema), validate(updateUserRoleSchema), AdminOperationsController.updateUserRole);
+router.put('/users/:user/role', validate(adminUserParamSchema), validate(updateUserRoleSchema), AdminOperationsController.updateUserRole);
 
 // --- PLATFORM STATISTICS & DASHBOARD ---
 router.get('/statistics', AdminOperationsController.getStatistics);

@@ -88,6 +88,30 @@ class JobController {
   }
 
   /**
+   * GET /api/admin/jobs (Admin only)
+   */
+  static async adminList(req, res, next) {
+    try {
+      const result = await jobService.adminListJobs(req.query);
+      const baseUrl = `${req.protocol}://${req.get('host')}/api/admin/jobs`;
+      const { meta, links } = buildPaginationMeta(
+        result.count,
+        result.page,
+        result.perPage,
+        baseUrl
+      );
+      return paginated(
+        res,
+        JobPostResource.collection(result.rows, { savedJobIds: result.savedJobIds }),
+        meta,
+        links
+      );
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
    * POST /api/admin/jobs (Admin only)
    */
   static async adminCreate(req, res, next) {
@@ -120,6 +144,20 @@ class JobController {
     try {
       const { job } = await jobService.updateJobPost(req.params.jobPost, req.body);
       return success(res, JobPostResource.toArray(job, { isSaved: false }));
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * DELETE /api/admin/jobs/:jobPost (Admin only)
+   */
+  static async adminDelete(req, res, next) {
+    try {
+      await jobService.deleteJobPost(req.params.jobPost);
+      return res.status(200).json({
+        message: 'Job post deleted successfully.'
+      });
     } catch (err) {
       next(err);
     }

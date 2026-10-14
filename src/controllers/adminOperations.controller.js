@@ -34,6 +34,35 @@ class AdminOperationsController {
   }
 
   /**
+   * POST /api/admin/users
+   */
+  static async createUser(req, res, next) {
+    try {
+      const user = await AdminOperationsService.createUser(req.body, req.user.id, req);
+      return actionSuccess(res, 'User created successfully.', AdminUserResource.toArray(user), 201);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * PATCH / PUT /api/admin/users/:user
+   */
+  static async updateUser(req, res, next) {
+    try {
+      const user = await AdminOperationsService.updateUser(
+        req.params.user,
+        req.user.id,
+        req.body,
+        req
+      );
+      return actionSuccess(res, 'User updated successfully.', AdminUserResource.toArray(user), 200);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
    * PATCH /api/admin/users/:user/status
    */
   static async updateUserStatus(req, res, next) {

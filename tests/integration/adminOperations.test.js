@@ -542,6 +542,91 @@ describe('Phase 12 - Admin Operations, Moderation & AI Review Queue Tests', () =
 
       expect(res.status).toBe(422);
     });
+
+    it('POST /api/admin/users creates a new user (Add User)', async () => {
+      const res = await request(app)
+        .post('/api/admin/users')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          full_name: 'Hassan New User',
+          email: 'hassan.new@example.com',
+          role: 'Candidate'
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.status).toBe('success');
+      expect(res.body.data.name).toBe('Hassan New User');
+      expect(res.body.data.email).toBe('hassan.new@example.com');
+      expect(res.body.data.role).toBe('candidate');
+
+      const check = await db.User.findOne({ where: { email: 'hassan.new@example.com' } });
+      expect(check).not.toBeNull();
+    });
+
+    it('POST /admin/users creates a new user via direct /admin route (without /api prefix)', async () => {
+      const res = await request(app)
+        .post('/admin/users')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          name: 'Ahmed Route Test',
+          email: 'ahmed.route@example.com',
+          role: 'Admin'
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.status).toBe('success');
+      expect(res.body.data.role).toBe('admin');
+    });
+
+    it('PATCH /api/admin/users/:user updates user details (Edit User)', async () => {
+      const res = await request(app)
+        .patch(`/api/admin/users/${targetCandidate.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({
+          name: 'Ahmed Wael Edited',
+          role: 'Admin'
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('success');
+      expect(res.body.data.name).toBe('Ahmed Wael Edited');
+      expect(res.body.data.role).toBe('admin');
+
+      const check = await db.User.findByPk(targetCandidate.id);
+      expect(check.name).toBe('Ahmed Wael Edited');
+      expect(check.role).toBe('admin');
+    });
+
+    it('PUT /admin/users/:user updates user details via PUT without /api prefix', async () => {
+      const res = await request(app)
+        .put(`/admin/users/${targetCandidate.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({
+          role: 'candidate'
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('success');
+      expect(res.body.data.role).toBe('candidate');
+    });
+
+    it('GET /api/admin/jobs and GET /admin/jobs lists jobs for admin dashboard', async () => {
+      const resWithApi = await request(app)
+        .get('/api/admin/jobs')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(resWithApi.status).toBe(200);
+      expect(resWithApi.body).toHaveProperty('data');
+      expect(Array.isArray(resWithApi.body.data)).toBe(true);
+
+      const resWithoutApi = await request(app)
+        .get('/admin/jobs')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(resWithoutApi.status).toBe(200);
+      expect(resWithoutApi.body).toHaveProperty('data');
+      expect(Array.isArray(resWithoutApi.body.data)).toBe(true);
+    });
   });
 
   describe('5. Operational Statistics & Dashboard', () => {

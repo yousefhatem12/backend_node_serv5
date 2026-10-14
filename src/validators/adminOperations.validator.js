@@ -80,17 +80,98 @@ const adminUserParamSchema = z.object({
   })
 });
 
+const createAdminUserSchema = z.object({
+  body: z.object({
+    name: z.string().trim().min(1, 'Name is required.').optional(),
+    full_name: z.string().trim().min(1, 'Full name is required.').optional(),
+    email: z.string().trim().email('Must be a valid email address.'),
+    role: z.preprocess(
+      (val) => {
+        if (!val) return 'candidate';
+        if (typeof val !== 'string') return val;
+        const lower = val.trim().toLowerCase();
+        if (lower.includes('admin') && lower.includes('super')) return 'super_admin';
+        if (lower.includes('admin')) return 'admin';
+        if (lower.includes('candidate')) return 'candidate';
+        return lower;
+      },
+      z.enum(['candidate', 'admin', 'super_admin'])
+    ).default('candidate'),
+    password: z.string().min(6, 'Password must be at least 6 characters.').optional(),
+    phone: z.string().optional().nullable(),
+    is_active: z.preprocess(
+      (val) => {
+        if (val === undefined || val === null) return true;
+        if (val === 'true' || val === true || val === 1 || val === '1') return true;
+        if (val === 'false' || val === false || val === 0 || val === '0') return false;
+        return true;
+      },
+      z.boolean()
+    ).default(true)
+  }).refine(data => Boolean(data.name || data.full_name), {
+    message: 'Name is required.',
+    path: ['name']
+  })
+});
+
+const updateAdminUserSchema = z.object({
+  body: z.object({
+    name: z.string().trim().min(1, 'Name is required.').optional(),
+    full_name: z.string().trim().min(1, 'Full name is required.').optional(),
+    email: z.string().trim().email('Must be a valid email address.').optional(),
+    role: z.preprocess(
+      (val) => {
+        if (typeof val !== 'string') return val;
+        const lower = val.trim().toLowerCase();
+        if (lower.includes('admin') && lower.includes('super')) return 'super_admin';
+        if (lower.includes('admin')) return 'admin';
+        if (lower.includes('candidate')) return 'candidate';
+        return lower;
+      },
+      z.enum(['candidate', 'admin', 'super_admin'])
+    ).optional(),
+    is_active: z.preprocess(
+      (val) => {
+        if (val === undefined || val === null) return undefined;
+        if (val === 'true' || val === true || val === 1 || val === '1') return true;
+        if (val === 'false' || val === false || val === 0 || val === '0') return false;
+        return undefined;
+      },
+      z.boolean().optional()
+    ).optional(),
+    password: z.string().min(6, 'Password must be at least 6 characters.').optional(),
+    phone: z.string().optional().nullable()
+  })
+});
+
 const updateUserStatusSchema = z.object({
   body: z.object({
-    is_active: z.boolean({ required_error: 'is_active is required.' })
+    is_active: z.preprocess(
+      (val) => {
+        if (val === 'true' || val === true || val === 1 || val === '1') return true;
+        if (val === 'false' || val === false || val === 0 || val === '0') return false;
+        return val;
+      },
+      z.boolean({ required_error: 'is_active is required.' })
+    )
   })
 });
 
 const updateUserRoleSchema = z.object({
   body: z.object({
-    role: z.enum(['candidate', 'admin', 'super_admin'], {
-      required_error: 'role is required and must be candidate, admin, or super_admin.'
-    })
+    role: z.preprocess(
+      (val) => {
+        if (typeof val !== 'string') return val;
+        const lower = val.trim().toLowerCase();
+        if (lower.includes('admin') && lower.includes('super')) return 'super_admin';
+        if (lower.includes('admin')) return 'admin';
+        if (lower.includes('candidate')) return 'candidate';
+        return lower;
+      },
+      z.enum(['candidate', 'admin', 'super_admin'], {
+        required_error: 'role is required and must be candidate, admin, or super_admin.'
+      })
+    )
   })
 });
 
@@ -103,6 +184,8 @@ module.exports = {
   listAuditLogsQuerySchema,
   listAdminUsersQuerySchema,
   adminUserParamSchema,
+  createAdminUserSchema,
+  updateAdminUserSchema,
   updateUserStatusSchema,
   updateUserRoleSchema
 };

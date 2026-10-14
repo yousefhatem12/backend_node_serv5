@@ -185,6 +185,144 @@ class JobService {
   }
 
   /**
+   * List jobs for admin dashboard (shows all jobs, including inactive/expired unless explicitly filtered)
+   */
+  async adminListJobs(query = {}) {
+    const {
+      search,
+      sort = 'newest',
+      company_id,
+      is_active,
+      job_type,
+      work_mode,
+      employment_type,
+      experience_level,
+      country,
+      state,
+      city,
+      application_method,
+      required_skill_ids,
+      page = 1,
+      per_page = 15
+    } = query;
+
+    const where = {};
+
+    if (is_active !== undefined) {
+      if (typeof is_active === 'string') {
+        where.is_active = is_active === 'true' || is_active === '1';
+      } else {
+        where.is_active = Boolean(is_active);
+      }
+    }
+
+    if (company_id) {
+      where.company_id = company_id;
+    }
+    if (job_type) {
+      where.job_type = job_type;
+    }
+    if (work_mode) {
+      where.work_mode = work_mode;
+    }
+    if (employment_type) {
+      where.employment_type = employment_type;
+    }
+    if (experience_level) {
+      where.experience_level = experience_level;
+    }
+    if (country) {
+      where.country = country;
+    }
+    if (state) {
+      where.state = state;
+    }
+    if (city) {
+      where.city = city;
+    }
+    if (application_method) {
+      where.application_method = application_method;
+    }
+
+    const searchTerm = (search || query.q || '').trim();
+    if (searchTerm) {
+      const matchingCompanies = await db.Company.findAll({
+        attributes: ['id'],
+        where: { name: { [Op.like]: `%${searchTerm}%` } },
+        raw: true
+      });
+      const matchingCompanyIds = matchingCompanies.map(c => c.id);
+
+      const searchConditions = [
+        { title: { [Op.like]: `%${searchTerm}%` } },
+        { canonical_role: { [Op.like]: `%${searchTerm}%` } },
+        { description: { [Op.like]: `%${searchTerm}%` } }
+      ];
+
+      if (matchingCompanyIds.length > 0) {
+        searchConditions.push({ company_id: { [Op.in]: matchingCompanyIds } });
+      }
+
+      where[Op.and] = where[Op.and] || [];
+      where[Op.and].push({ [Op.or]: searchConditions });
+    }
+
+    const normalizedReqSkillIds = required_skill_ids
+      ? (Array.isArray(required_skill_ids)
+          ? required_skill_ids.map(Number)
+          : String(required_skill_ids).split(',').map(s => Number(s.trim())).filter(n => !isNaN(n)))
+      : [];
+
+    if (normalizedReqSkillIds.length > 0) {
+      const matchingJobIds = await db.JobSkill.findAll({
+        attributes: ['job_post_id'],
+        where: {
+          is_required: true,
+          skill_id: { [Op.in]: normalizedReqSkillIds }
+        },
+        raw: true
+      });
+      const jobIds = matchingJobIds.map(m => m.job_post_id);
+      where.id = { [Op.in]: jobIds.length > 0 ? jobIds : [0] };
+    }
+
+    let order = [['created_at', 'DESC'], ['id', 'DESC']];
+    if (sort === 'published_at') {
+      order = [['published_at', 'DESC'], ['id', 'DESC']];
+    }
+
+    const limit = Number(query.limit || per_page || 15);
+    const offset = (Number(page) - 1) * limit;
+
+    const { rows, count } = await db.JobPost.findAndCountAll({
+      where,
+      include: [
+        {
+          model: db.Company,
+          as: 'company'
+        },
+        {
+          model: db.JobSkill,
+          as: 'jobSkills',
+          include: [{ model: db.Skill, as: 'skill' }]
+        }
+      ],
+      order,
+      distinct: true,
+      limit,
+      offset
+    });
+
+    return {
+      rows,
+      count,
+      page: Number(page),
+      perPage: limit,
+      savedJobIds: new Set()
+    };
+  }
+
+  /**
    * Get single job post details
    */
   async getJob(jobId, candidateUserId = null) {
@@ -397,6 +535,18 @@ class JobService {
     }
 
     return this.getJob(job.id);
+  }
+
+  /**
+   * Delete job post
+   */
+  async deleteJobPost(jobId) {
+    const job = await db.JobPost.findByPk(jobId);
+    if (!job) {
+      throw new NotFoundError('Job post not found.');
+    }
+    await job.destroy();
+    return { success: true };
   }
 }
 

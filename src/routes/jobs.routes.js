@@ -16,6 +16,10 @@ const {
 
 // Public jobs feed (optional candidate auth populates is_saved)
 router.get('/', validate(listJobsQuerySchema), authMiddleware.optional, JobController.list);
+router.get('/feed', validate(listJobsQuerySchema), authMiddleware.optional, JobController.list);
+router.get('/list', validate(listJobsQuerySchema), authMiddleware.optional, JobController.list);
+router.get('/all', validate(listJobsQuerySchema), authMiddleware.optional, JobController.list);
+router.get('/search', validate(listJobsQuerySchema), authMiddleware.optional, JobController.list);
 
 // Candidate personalized recommendations (placed before /:jobPost)
 router.get('/recommendations', authMiddleware, ensureActiveCandidate, validate(recommendationsQuerySchema), MatchController.getRecommendations);

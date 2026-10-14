@@ -1,9 +1,11 @@
 'use strict';
 
 const db = require('../models');
+const crypto = require('crypto');
 const { Op, fn, col } = require('sequelize');
 const { NotFoundError, ValidationError } = require('../utils/errors');
 const AuditLogService = require('./auditLog.service');
+const candidateProfileService = require('./candidateProfile.service');
 
 class AdminOperationsService {
   /**
@@ -93,6 +95,75 @@ class AdminOperationsService {
   }
 
   /**
+   * Create a new platform user directly from admin dashboard
+   */
+  static async createUser(payload, actorId, req = null) {
+    const name = (payload.name || payload.full_name || '').trim();
+    const email = (payload.email || '').trim().toLowerCase();
+
+    if (!name || !email) {
+      throw new ValidationError('Name and email are required.', {
+        name: !name ? ['The name field is required.'] : [],
+        email: !email ? ['The email field is required.'] : []
+      });
+    }
+
+    const existing = await db.User.findOne({ where: { email } });
+    if (existing) {
+      throw new ValidationError('The email has already been taken.', {
+        email: ['The email has already been taken.']
+      });
+    }
+
+    let role = 'candidate';
+    if (payload.role) {
+      const lower = String(payload.role).trim().toLowerCase();
+      if (lower.includes('admin') && lower.includes('super')) {
+        role = 'super_admin';
+      } else if (lower.includes('admin')) {
+        role = 'admin';
+      } else if (lower.includes('candidate')) {
+        role = 'candidate';
+      }
+    }
+
+    // Auto-generate random secure password if omitted by admin form
+    const password = payload.password || `SkillMatch@${crypto.randomBytes(4).toString('hex')}!`;
+    const isActive = payload.is_active !== undefined ? Boolean(payload.is_active) : true;
+
+    const user = await db.User.create({
+      name,
+      email,
+      password,
+      role,
+      phone: payload.phone || null,
+      is_active: isActive,
+      email_verified_at: new Date()
+    });
+
+    if (role === 'candidate') {
+      await candidateProfileService.getOrCreateProfile(user.id);
+    }
+
+    await AuditLogService.logAction({
+      actorId,
+      action: 'user.created',
+      entityType: 'User',
+      entityId: user.id,
+      source: 'admin_portal',
+      newValues: {
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        is_active: user.is_active
+      },
+      req
+    });
+
+    return user;
+  }
+
+  /**
    * Update active status of a user (moderation: suspend / activate)
    */
   static async updateUserStatus(userId, actorId, payload, req = null) {
@@ -166,6 +237,121 @@ class AdminOperationsService {
       newValues: { role },
       req
     });
+
+    return user;
+  }
+
+  /**
+   * Update full user details (name, email, role, is_active, phone, password)
+   */
+  static async updateUser(userId, actorId, payload, req = null) {
+    const user = await db.User.findByPk(userId);
+    if (!user) {
+      throw new NotFoundError('User not found.');
+    }
+
+    const oldValues = {
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      is_active: user.is_active
+    };
+
+    const newValues = {};
+
+    // 1. Update Name
+    if (payload.name || payload.full_name) {
+      const name = (payload.name || payload.full_name).trim();
+      if (name && name !== user.name) {
+        user.name = name;
+        newValues.name = name;
+      }
+    }
+
+    // 2. Update Email (if changed)
+    if (payload.email) {
+      const email = payload.email.trim().toLowerCase();
+      if (email !== user.email.toLowerCase()) {
+        const existing = await db.User.findOne({
+          where: {
+            email,
+            id: { [Op.ne]: user.id }
+          }
+        });
+        if (existing) {
+          throw new ValidationError('The email has already been taken.', {
+            email: ['The email has already been taken.']
+          });
+        }
+        user.email = email;
+        newValues.email = email;
+      }
+    }
+
+    // 3. Update Role (if provided)
+    if (payload.role) {
+      let role = String(payload.role).trim().toLowerCase();
+      if (role.includes('admin') && role.includes('super')) {
+        role = 'super_admin';
+      } else if (role.includes('admin')) {
+        role = 'admin';
+      } else if (role.includes('candidate')) {
+        role = 'candidate';
+      }
+
+      const allowedRoles = ['candidate', 'admin', 'super_admin'];
+      if (!allowedRoles.includes(role)) {
+        throw new ValidationError(`Invalid role: ${role}. Must be one of: ${allowedRoles.join(', ')}`);
+      }
+
+      if (Number(userId) === Number(actorId) && role !== user.role) {
+        throw new ValidationError('Cannot change your own role.');
+      }
+
+      if (user.role !== role) {
+        user.role = role;
+        newValues.role = role;
+      }
+    }
+
+    // 4. Update Status (if provided)
+    if (payload.is_active !== undefined) {
+      const isActive = Boolean(payload.is_active);
+      if (Number(userId) === Number(actorId) && isActive !== user.is_active) {
+        throw new ValidationError('Cannot change your own active status.');
+      }
+      if (user.is_active !== isActive) {
+        user.is_active = isActive;
+        newValues.is_active = isActive;
+      }
+    }
+
+    // 5. Update Phone
+    if (payload.phone !== undefined) {
+      user.phone = payload.phone;
+      newValues.phone = payload.phone;
+    }
+
+    // 6. Update Password
+    if (payload.password) {
+      user.password = payload.password;
+      newValues.password = '***UPDATED***';
+    }
+
+    await user.save();
+
+    if (Object.keys(newValues).length > 0) {
+      await AuditLogService.logAction({
+        actorId,
+        action: 'user.updated',
+        entityType: 'User',
+        entityId: user.id,
+        source: 'admin_portal',
+        oldValues,
+        newValues,
+        req
+      });
+    }
 
     return user;
   }

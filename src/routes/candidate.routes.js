@@ -11,6 +11,7 @@ const ExperienceController = require('../controllers/experience.controller');
 const ProjectController = require('../controllers/project.controller');
 const SkillController = require('../controllers/skill.controller');
 const MatchController = require('../controllers/match.controller');
+const JobController = require('../controllers/job.controller');
 
 const {
   updateProfileSchema,
@@ -23,14 +24,23 @@ const {
   updateProjectSchema,
   addCandidateSkillSchema,
   idParamSchema,
-  recommendationsQuerySchema
+  recommendationsQuerySchema,
+  listJobsQuerySchema
 } = require('../validators');
 
 // Protect all candidate routes: must be authenticated and active candidate
 router.use(authMiddleware, ensureActiveCandidate);
 
-// --- RECOMMENDED JOBS & SKILL GAPS ---
+// --- RECOMMENDED JOBS & CANDIDATE JOBS ---
 router.get('/recommended-jobs', validate(recommendationsQuerySchema), MatchController.getRecommendations);
+router.get('/jobs/recommended', validate(recommendationsQuerySchema), MatchController.getRecommendations);
+router.get('/jobs/recommendations', validate(recommendationsQuerySchema), MatchController.getRecommendations);
+router.get('/job-posts/recommended', validate(recommendationsQuerySchema), MatchController.getRecommendations);
+router.get('/jobs', validate(listJobsQuerySchema), JobController.list);
+router.get('/jobs/list', validate(listJobsQuerySchema), JobController.list);
+router.get('/jobs/feed', validate(listJobsQuerySchema), JobController.list);
+router.get('/job-posts', validate(listJobsQuerySchema), JobController.list);
+router.get('/job-posts/list', validate(listJobsQuerySchema), JobController.list);
 router.get('/skill-gaps', MatchController.getSkillGaps);
 
 // --- PROFILE & CAREER PREFERENCES ---

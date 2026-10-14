@@ -25,10 +25,18 @@ const docsHelmet = helmet({
   }
 });
 
-// Normalize consecutive slashes in request URLs (e.g. /api//auth/login -> /api/auth/login)
+// Normalize consecutive slashes and route prefixes so endpoints work with or without /api prefix
 app.use((req, res, next) => {
   if (req.url) {
     req.url = req.url.replace(/\/{2,}/g, '/');
+  }
+  const parsedPath = req.path || req.url || '';
+  if (
+    !parsedPath.startsWith('/api') &&
+    !parsedPath.startsWith('/storage') &&
+    !parsedPath.startsWith('/docs')
+  ) {
+    req.url = '/api' + (req.url.startsWith('/') ? req.url : '/' + req.url);
   }
   next();
 });
@@ -53,9 +61,9 @@ app.use('/storage', express.static(path.resolve(config.storage.path)));
 // Convenience redirect: /docs -> /api/docs
 app.get('/docs', (req, res) => res.redirect('/api/docs'));
 
-
-// Mount all API routes under /api
+// Mount all API routes under /api and root /
 app.use('/api', apiRoutes);
+app.use('/', apiRoutes);
 
 // Catch 404 routes
 app.use((req, res, next) => {

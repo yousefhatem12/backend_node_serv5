@@ -3,6 +3,52 @@ const queueService = require('../../src/services/queue/queue.service');
 const worker = require('../../src/jobs/worker');
 const { QUEUE_JOB_STATUSES } = require('../../src/config/constants');
 
+const mockJobsStore = new Map();
+let mockNextId = 1;
+
+jest.mock('../../src/models', () => {
+  const { QUEUE_JOB_STATUSES } = require('../../src/config/constants');
+  return {
+    sequelize: {
+      authenticate: jest.fn().mockResolvedValue(true),
+      close: jest.fn().mockResolvedValue(true),
+      transaction: jest.fn().mockResolvedValue({
+        LOCK: { UPDATE: 'UPDATE' },
+        commit: jest.fn().mockResolvedValue(true),
+        rollback: jest.fn().mockResolvedValue(true)
+      })
+    },
+    QueueJob: {
+      destroy: jest.fn().mockImplementation(async () => {
+        mockJobsStore.clear();
+      }),
+      create: jest.fn().mockImplementation(async (data) => {
+        const job = {
+          id: mockNextId++,
+          attempts: 0,
+          error: null,
+          status: QUEUE_JOB_STATUSES.PENDING,
+          ...data,
+          save: jest.fn().mockImplementation(async function () {
+            mockJobsStore.set(this.id, this);
+            return this;
+          })
+        };
+        mockJobsStore.set(job.id, job);
+        return job;
+      }),
+      findOne: jest.fn().mockImplementation(async ({ where }) => {
+        for (const job of mockJobsStore.values()) {
+          if (where.name && job.name === where.name) return job;
+          if (where.status && job.status === where.status) return job;
+        }
+        return null;
+      }),
+      findByPk: jest.fn().mockImplementation(async (id) => mockJobsStore.get(Number(id)) || null)
+    }
+  };
+});
+
 describe('Database-backed Queue & Worker Unit Tests', () => {
   beforeAll(async () => {
     await db.sequelize.authenticate();

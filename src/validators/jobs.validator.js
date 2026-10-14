@@ -2,39 +2,49 @@ const { z } = require('zod');
 
 const optionalUrl = z.string().url('Must be a valid URL.').or(z.literal('')).nullish();
 
+const emptyToUndefined = (val) => (val === '' || val === null ? undefined : val);
+
 const listJobsQuerySchema = z.object({
   query: z.object({
-    search: z.string().trim().optional(),
-    sort: z.enum(['newest', 'relevance']).default('newest').optional(),
-    company_id: z.coerce.number().int().positive().optional(),
+    search: z.preprocess(emptyToUndefined, z.string().trim().optional()),
+    q: z.preprocess(emptyToUndefined, z.string().trim().optional()),
+    sort: z.preprocess(emptyToUndefined, z.string().trim().optional().default('newest')),
+    company_id: z.preprocess((val) => {
+      if (val === '' || val === null || val === undefined) return undefined;
+      const num = Number(val);
+      return isNaN(num) ? undefined : num;
+    }, z.number().int().positive().optional()),
     is_verified_company: z.preprocess((val) => {
       if (val === 'true' || val === true) return true;
       if (val === 'false' || val === false) return false;
       return undefined;
     }, z.boolean().optional()),
-    job_type: z.enum(['job', 'internship']).optional(),
-    work_mode: z.enum(['remote', 'hybrid', 'on-site']).optional(),
-    employment_type: z.enum(['full-time', 'part-time', 'contract']).optional(),
-    experience_level: z.enum(['entry', 'mid-level', 'senior', 'lead']).optional(),
-    country: z.string().trim().optional(),
-    state: z.string().trim().optional(),
-    city: z.string().trim().optional(),
-    application_method: z.enum(['internal', 'external']).optional(),
+    job_type: z.preprocess(emptyToUndefined, z.enum(['job', 'internship']).optional()),
+    work_mode: z.preprocess(emptyToUndefined, z.enum(['remote', 'hybrid', 'on-site']).optional()),
+    employment_type: z.preprocess(emptyToUndefined, z.enum(['full-time', 'part-time', 'contract']).optional()),
+    experience_level: z.preprocess(emptyToUndefined, z.enum(['entry', 'mid-level', 'senior', 'lead']).optional()),
+    country: z.preprocess(emptyToUndefined, z.string().trim().optional()),
+    state: z.preprocess(emptyToUndefined, z.string().trim().optional()),
+    city: z.preprocess(emptyToUndefined, z.string().trim().optional()),
+    application_method: z.preprocess(emptyToUndefined, z.enum(['internal', 'external']).optional()),
     required_skill_ids: z.preprocess((val) => {
+      if (!val || val === '') return undefined;
       if (Array.isArray(val)) return val.map(Number);
       if (typeof val === 'string') return val.split(',').map(s => Number(s.trim())).filter(n => !isNaN(n));
       if (typeof val === 'number') return [val];
       return undefined;
     }, z.array(z.number().int().positive()).optional()),
     preferred_skill_ids: z.preprocess((val) => {
+      if (!val || val === '') return undefined;
       if (Array.isArray(val)) return val.map(Number);
       if (typeof val === 'string') return val.split(',').map(s => Number(s.trim())).filter(n => !isNaN(n));
       if (typeof val === 'number') return [val];
       return undefined;
     }, z.array(z.number().int().positive()).optional()),
-    page: z.coerce.number().int().positive().default(1).optional(),
-    per_page: z.coerce.number().int().positive().max(100).default(15).optional()
-  })
+    page: z.preprocess((val) => (val === '' || val === null ? undefined : val), z.coerce.number().int().positive().default(1).optional()),
+    per_page: z.preprocess((val) => (val === '' || val === null ? undefined : val), z.coerce.number().int().positive().max(100).default(15).optional()),
+    limit: z.preprocess((val) => (val === '' || val === null ? undefined : val), z.coerce.number().int().positive().max(100).optional())
+  }).passthrough()
 });
 
 const listCompaniesQuerySchema = z.object({
