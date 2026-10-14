@@ -44,7 +44,7 @@ class AdminJobSourceController {
    */
   static async showSource(req, res, next) {
     try {
-      const identifier = req.params.jobSource;
+      const identifier = req.params.jobSource || req.params.id || req.params.sourceId;
       const { source, diagnostics } = await JobIngestionService.getSource(identifier);
       return res.status(200).json({
         data: JobSourceResource.toArray(source, diagnostics)
@@ -59,9 +59,11 @@ class AdminJobSourceController {
    */
   static async updateSource(req, res, next) {
     try {
-      const identifier = req.params.jobSource;
+      const identifier = req.params.jobSource || req.params.id || req.params.sourceId;
       const source = await JobIngestionService.updateSource(identifier, req.body);
       return res.status(200).json({
+        status: 'success',
+        message: 'Job source updated successfully.',
         data: JobSourceResource.toArray(source)
       });
     } catch (err) {
@@ -74,7 +76,7 @@ class AdminJobSourceController {
    */
   static async deleteSource(req, res, next) {
     try {
-      const identifier = req.params.jobSource;
+      const identifier = req.params.jobSource || req.params.id || req.params.sourceId;
       await JobIngestionService.deleteSource(identifier);
       return res.status(204).send();
     } catch (err) {
@@ -84,10 +86,11 @@ class AdminJobSourceController {
 
   /**
    * POST /api/admin/job-sources/:jobSource/run
+   * POST /api/admin/sources/:id/trigger
    */
   static async triggerRun(req, res, next) {
     try {
-      const identifier = req.params.jobSource;
+      const identifier = req.params.jobSource || req.params.id || req.params.sourceId;
       const run = await JobIngestionService.triggerRun(identifier, {
         trigger_type: req.body ? req.body.trigger_type : 'manual',
         items: req.body ? req.body.items : null
@@ -108,7 +111,7 @@ class AdminJobSourceController {
    */
   static async listSourceRuns(req, res, next) {
     try {
-      const identifier = req.params.jobSource;
+      const identifier = req.params.jobSource || req.params.id || req.params.sourceId;
       const result = await JobIngestionService.listRuns(req.query, identifier);
       const { meta, links } = buildPaginationMeta(
         result.pagination.total,

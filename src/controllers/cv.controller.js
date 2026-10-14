@@ -1,3 +1,4 @@
+const fs = require('fs');
 const cvService = require('../services/cv.service');
 const CvDocumentResource = require('../resources/cvDocument.resource');
 const { success, actionSuccess } = require('../utils/response');
@@ -73,6 +74,32 @@ class CvController {
         message: req.t ? req.t('cv.verified') : 'CV extraction verified and synced successfully.',
         data: null
       });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * GET /api/cv/preview/:cvDocument
+   * Preview CV PDF document inline
+   */
+  static async preview(req, res, next) {
+    try {
+      const locale = req.locale || 'en';
+      const { filePath, filename } = await cvService.getPreviewDocument(
+        req.user.id,
+        req.params.cvDocument,
+        locale
+      );
+
+      const safeFilename = filename.replace(/["\r\n]/g, '');
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"`);
+
+      const fileStream = fs.createReadStream(filePath);
+      fileStream.on('error', (err) => next(err));
+      return fileStream.pipe(res);
     } catch (err) {
       next(err);
     }

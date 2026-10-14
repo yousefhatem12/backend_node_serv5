@@ -34,10 +34,17 @@ class ValidationError extends AppError {
   }
 }
 
+class UnsupportedMediaTypeError extends AppError {
+  constructor(message = 'Unsupported Media Type.') {
+    super(message, 415);
+  }
+}
+
 module.exports = {
   AppError,
   NotFoundError,
   UnauthorizedError,
   ForbiddenError,
-  ValidationError
+  ValidationError,
+  UnsupportedMediaTypeError
 };

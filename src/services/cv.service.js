@@ -1,5 +1,8 @@
+const path = require('path');
+const fs = require('fs');
 const db = require('../models');
-const { NotFoundError, ValidationError } = require('../utils/errors');
+const { NotFoundError, ValidationError, ForbiddenError, UnsupportedMediaTypeError } = require('../utils/errors');
+const { t } = require('../utils/i18n');
 const candidateProfileService = require('./candidateProfile.service');
 const skillService = require('./skill.service');
 const queueService = require('./queue/queue.service');
@@ -187,6 +190,63 @@ class CvService {
     await profile.save();
 
     return true;
+  }
+
+  /**
+   * Retrieve and validate CV document for inline preview
+   * Strict ownership check, physical file existence check, and PDF format verification
+   */
+  async getPreviewDocument(userId, cvDocumentId, locale = 'en') {
+    const doc = await db.CvDocument.findByPk(cvDocumentId, {
+      include: [
+        {
+          model: db.CandidateProfile,
+          as: 'candidateProfile',
+          attributes: ['id', 'user_id']
+        }
+      ]
+    });
+
+    if (!doc) {
+      throw new NotFoundError(t('cv.notFound', locale));
+    }
+
+    // Verify strict ownership: authenticated candidate must own this CV
+    const ownerUserId = doc.candidateProfile ? Number(doc.candidateProfile.user_id) : null;
+    if (ownerUserId !== Number(userId)) {
+      throw new ForbiddenError(t('cv.forbidden', locale));
+    }
+
+    // Verify physical file exists in storage
+    const resolvedPath = path.isAbsolute(doc.storage_path)
+      ? doc.storage_path
+      : path.resolve(process.cwd(), doc.storage_path);
+
+    if (!fs.existsSync(resolvedPath)) {
+      throw new NotFoundError(t('cv.fileNotFound', locale));
+    }
+
+    // Check file format: PDF is required for inline browser preview
+    const originalExt = path.extname(doc.original_filename || '').toLowerCase();
+    const storageExt = path.extname(doc.storage_path || '').toLowerCase();
+    const ext = originalExt || storageExt;
+    const mime = (doc.mime_type || '').toLowerCase();
+
+    const isPdf = ext === '.pdf' || mime === 'application/pdf';
+
+    if (!isPdf) {
+      const formatName = ext.replace('.', '').toUpperCase() || 'DOCX';
+      const msg = locale === 'ar'
+        ? `ملف السيرة الذاتية بصيغة ${formatName} ولا يمكن معاينته مباشرة كـ PDF. المعاينة المباشرة متاحة لملفات PDF فقط.`
+        : `The stored CV is in ${formatName} format and cannot be previewed inline as PDF. Only PDF files are supported for inline preview.`;
+      throw new UnsupportedMediaTypeError(msg);
+    }
+
+    return {
+      doc,
+      filePath: resolvedPath,
+      filename: doc.original_filename || 'cv.pdf'
+    };
   }
 }
 

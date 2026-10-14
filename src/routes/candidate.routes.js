@@ -100,11 +100,17 @@ router.delete('/projects/:id', validate(idParamSchema), ProjectController.destro
 
 // --- CV IMPROVEMENT ASSISTANT ---
 const CvImproverController = require('../controllers/cvImprover.controller');
-const { analyzeCvSchema, listCvImprovementsQuerySchema } = require('../validators');
+const RoadmapController = require('../controllers/roadmap.controller');
+const { analyzeCvSchema, listCvImprovementsQuerySchema, addRoadmapXpSchema, getRoadmapXpQuerySchema } = require('../validators');
 
 router.post('/cv-improvements/analyze', validate(analyzeCvSchema), CvImproverController.analyze);
 router.get('/cv-improvements/latest', CvImproverController.getLatest);
 router.get('/cv-improvements', validate(listCvImprovementsQuerySchema), CvImproverController.listHistory);
 
+// --- CANDIDATE ROADMAP XP & GAMIFICATION ---
+router.get('/xp', validate(getRoadmapXpQuerySchema), RoadmapController.getXp);
+router.patch('/xp', validate(addRoadmapXpSchema), RoadmapController.addXp);
+
 module.exports = router;
+
 

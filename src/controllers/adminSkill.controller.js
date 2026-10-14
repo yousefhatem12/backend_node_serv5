@@ -101,6 +101,92 @@ class AdminSkillController {
       next(err);
     }
   }
+
+  // --- TAXONOMY CRUD ENDPOINTS ---
+
+  /**
+   * GET /admin/taxonomy/skills
+   */
+  static async listTaxonomySkills(req, res, next) {
+    try {
+      const result = await skillService.listTaxonomySkills(req.query);
+      return res.status(200).json({
+        status: 'success',
+        data: SkillResource.taxonomyCollection(result.skills),
+        taxonomy_summary: result.taxonomy_summary,
+        meta: {
+          current_page: result.page,
+          per_page: result.limit,
+          total: result.total,
+          last_page: result.totalPages
+        }
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST /admin/taxonomy/skills
+   */
+  static async createTaxonomySkill(req, res, next) {
+    try {
+      const result = await skillService.createTaxonomySkill(req.body);
+      if (result.alias) {
+        return res.status(201).json({
+          status: 'success',
+          message: 'Skill alias created successfully.',
+          data: {
+            alias: SkillAliasResource.toArray(result.alias),
+            skill: SkillResource.toTaxonomyArray(result.skill)
+          }
+        });
+      }
+
+      return res.status(201).json({
+        status: 'success',
+        message: 'Canonical skill created successfully.',
+        data: SkillResource.toTaxonomyArray(result)
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * PATCH /admin/taxonomy/skills/:id
+   */
+  static async updateTaxonomySkill(req, res, next) {
+    try {
+      const skill = await skillService.updateTaxonomySkill(req.params.id, req.body);
+      return res.status(200).json({
+        status: 'success',
+        message: 'Taxonomy entry updated successfully.',
+        data: SkillResource.toTaxonomyArray(skill)
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * DELETE /admin/taxonomy/skills/:id
+   */
+  static async deleteTaxonomySkill(req, res, next) {
+    try {
+      const permanent = req.query.permanent || (req.body && req.body.permanent);
+      const result = await skillService.deleteTaxonomySkill(req.params.id, permanent);
+      return res.status(200).json({
+        status: 'success',
+        message: result.permanent
+          ? 'Taxonomy entry removed permanently.'
+          : 'Taxonomy entry deactivated successfully.',
+        data: result
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = AdminSkillController;

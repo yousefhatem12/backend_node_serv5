@@ -1018,6 +1018,57 @@ paths:
                         items:
                           $ref: '#/components/schemas/CvImprovement'
 
+  /candidate/xp:
+    get:
+      tags: [Candidate Profile, Roadmaps]
+      summary: Get candidate roadmap achievement XP status and levels
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: roadmap_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    $ref: '#/components/schemas/UserXpSummary'
+                required: [status, data]
+    patch:
+      tags: [Candidate Profile, Roadmaps]
+      summary: Add XP for user roadmap achievements
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddRoadmapXpRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: XP awarded successfully.
+                  data:
+                    $ref: '#/components/schemas/AddXpResult'
+                required: [status, message, data]
+
   /skills/search:
     get:
       tags: [Skills]
@@ -1104,6 +1155,54 @@ paths:
                 required: [data]
         '404':
           $ref: '#/components/responses/NotFoundError'
+
+  /cv/preview/{cvDocument}:
+    get:
+      tags: [CV]
+      summary: Stream and preview CV PDF document inline
+      description: Streams the candidate's uploaded CV file as inline binary PDF data (`Content-Type: application/pdf`). Non-PDF files (e.g. DOCX) return 415 Unsupported Media Type. Strict ownership is enforced.
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: cvDocument
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Unique identifier of the CV document
+      responses:
+        '200':
+          description: Inline binary PDF file stream
+          headers:
+            Content-Type:
+              schema:
+                type: string
+                example: application/pdf
+            Content-Disposition:
+              schema:
+                type: string
+                example: inline; filename="candidate_resume.pdf"
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '415':
+          description: Unsupported Media Type (Non-PDF document cannot be previewed inline)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: The stored CV is in DOCX format and cannot be previewed inline as PDF. Only PDF files are supported for inline preview.
+                required: [message]
 
   /cv/history:
     get:
@@ -1746,6 +1845,114 @@ paths:
                   data:
                     $ref: '#/components/schemas/Roadmap'
                 required: [data]
+
+  /roadmaps/xp:
+    get:
+      tags: [Roadmaps]
+      summary: Get candidate roadmap XP summary, levels, and achievements
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: roadmap_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    $ref: '#/components/schemas/UserXpSummary'
+                required: [status, data]
+    patch:
+      tags: [Roadmaps]
+      summary: Add XP for user to achieve roadmap goals
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddRoadmapXpRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: XP awarded successfully.
+                  data:
+                    $ref: '#/components/schemas/AddXpResult'
+                required: [status, message, data]
+
+  /roadmaps/{roadmap}/xp:
+    get:
+      tags: [Roadmaps]
+      summary: Get specific roadmap XP metrics, tasks completion, and history
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: roadmap
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    $ref: '#/components/schemas/RoadmapXpDetails'
+                required: [status, data]
+    patch:
+      tags: [Roadmaps]
+      summary: Add XP for specific roadmap progress
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: roadmap
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddRoadmapXpRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: XP awarded successfully for roadmap.
+                  data:
+                    $ref: '#/components/schemas/AddXpResult'
+                required: [status, message, data]
 
   /roadmaps/tasks/{roadmapTask}/complete:
     patch:
@@ -3234,7 +3441,455 @@ paths:
                     $ref: '#/components/schemas/PlatformStatistics'
                 required: [data]
 
+  /admin/taxonomy/skills:
+    get:
+      tags: [Admin]
+      summary: List canonical skills, categories, and aliases
+      description: Returns canonical skills taxonomy with mapped aliases, category groupings, and verification states.
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: is_active
+          in: query
+          schema:
+            type: boolean
+        - name: is_verified
+          in: query
+          schema:
+            type: boolean
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TaxonomySkill'
+                required: [data]
+    post:
+      tags: [Admin]
+      summary: Create a new canonical skill or alias
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaxonomySkillRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/ActionSuccess'
+
+  /admin/taxonomy/skills/{id}:
+    patch:
+      tags: [Admin]
+      summary: Update skill details or map aliases
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTaxonomySkillRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+    delete:
+      tags: [Admin]
+      summary: Deactivate or remove an incorrect taxonomy entry
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: permanent
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+
+  /admin/sources:
+    get:
+      tags: [Admin]
+      summary: List all approved job aggregation sources and their health status
+      description: Returns all configured job crawler/feed sources along with their health metrics.
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: source_type
+          in: query
+          schema:
+            type: string
+            enum: [rss, api, scraper]
+        - name: is_active
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/JobSource'
+    post:
+      tags: [Admin]
+      summary: Register a new approved job source
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminCreateJobSourceRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/JobSource'
+                required: [data]
+
+  /admin/sources/{id}:
+    get:
+      tags: [Admin]
+      summary: Get single job source details
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/JobSource'
+                required: [data]
+    patch:
+      tags: [Admin]
+      summary: Enable/disable a source or update its metadata
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpdateJobSourceRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/JobSource'
+                required: [data]
+    put:
+      tags: [Admin]
+      summary: Update job source metadata
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpdateJobSourceRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/JobSource'
+                required: [data]
+    delete:
+      tags: [Admin]
+      summary: Delete or archive job source
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+
+  /admin/sources/{id}/trigger:
+    post:
+      tags: [Admin]
+      summary: Manually trigger a collection/scraping run for a specific source
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/IngestionRun'
+                required: [data]
+
+  /admin/ai-review/queue:
+    get:
+      tags: [Admin]
+      summary: Retrieve low-confidence CV/job extractions or ambiguous skill mappings flagged for human review
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - name: item_type
+          in: query
+          schema:
+            type: string
+            enum: [cv_extraction, job_parsing, skill_taxonomy, candidate_match]
+        - name: confidence_below
+          in: query
+          schema:
+            type: number
+            default: 0.75
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginatedEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/AiReviewItem'
+
+  /admin/ai-review/{id}:
+    get:
+      tags: [Admin]
+      summary: Retrieve single AI review item details
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AiReviewItem'
+                required: [data]
+
+  /admin/ai-review/{id}/approve:
+    post:
+      tags: [Admin]
+      summary: Approve the AI-extracted item into the canonical database
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                review_notes:
+                  type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+
+  /admin/ai-review/{id}/correct:
+    patch:
+      tags: [Admin]
+      summary: Correct malformed job/CV tags or taxonomy mappings with administrative audit logs
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [corrections]
+              properties:
+                corrections:
+                  type: object
+                review_notes:
+                  type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+    post:
+      tags: [Admin]
+      summary: Correct malformed job/CV tags or taxonomy mappings (POST alias)
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [corrections]
+              properties:
+                corrections:
+                  type: object
+                review_notes:
+                  type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+
+  /admin/ai-review/{id}/reject:
+    post:
+      tags: [Admin]
+      summary: Reject AI review item
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rejection_reason]
+              properties:
+                rejection_reason:
+                  type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+
+  /admin/stats:
+    get:
+      tags: [Admin]
+      summary: Provide summary usage and operations metrics
+      description: Returns active users count, active jobs volume, application counts, and source freshness metrics.
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/PlatformStatistics'
+                required: [data]
+
+  /admin/moderation/merge-duplicates:
+    post:
+      tags: [Admin]
+      summary: Merge duplicate job or company listings and record audit trails
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MergeDuplicatesRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/ActionSuccess'
+
 components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Enter the JWT access token in the format 'Bearer <token>'
+
   parameters:
     AcceptLanguage:
       name: Accept-Language
@@ -4985,3 +5640,219 @@ components:
           type: boolean
         config:
           type: object
+
+    TaxonomySkill:
+      type: object
+      required: [id, name, slug]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+        category:
+          type: string
+        is_verified:
+          type: boolean
+        is_active:
+          type: boolean
+        aliases:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              alias_name:
+                type: string
+
+    CreateTaxonomySkillRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        category:
+          type: string
+        canonical_skill_id:
+          type: integer
+        is_verified:
+          type: boolean
+        aliases:
+          type: array
+          items:
+            type: string
+
+    UpdateTaxonomySkillRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        category:
+          type: string
+        is_active:
+          type: boolean
+        is_verified:
+          type: boolean
+        canonical_skill_id:
+          type: integer
+        aliases:
+          type: array
+          items:
+            type: string
+
+    MergeDuplicatesRequest:
+      type: object
+      required: [entity_type]
+      properties:
+        entity_type:
+          type: string
+          enum: [job_post, company]
+        source_id:
+          type: integer
+        target_id:
+          type: integer
+        source_job_id:
+          type: integer
+        target_job_id:
+          type: integer
+        source_company_id:
+          type: integer
+        target_company_id:
+          type: integer
+        reason:
+          type: string
+
+    AddRoadmapXpRequest:
+      type: object
+      required: [xp]
+      properties:
+        xp:
+          type: integer
+          minimum: 1
+          example: 50
+        reason:
+          type: string
+          example: Completed TypeScript Generics module
+        roadmap_id:
+          type: integer
+          example: 1
+        task_id:
+          type: integer
+          example: 10
+        milestone_id:
+          type: integer
+          example: 3
+
+    UserXpSummary:
+      type: object
+      required: [user_id, total_xp, level, level_title, level_info]
+      properties:
+        user_id:
+          type: integer
+          example: 5
+        total_xp:
+          type: integer
+          example: 275
+        level:
+          type: integer
+          example: 3
+        level_title:
+          type: string
+          example: Knowledge Seeker
+        level_info:
+          type: object
+          properties:
+            level:
+              type: integer
+            title:
+              type: string
+            total_xp:
+              type: integer
+            current_level_xp:
+              type: integer
+            next_level_xp:
+              type: integer
+            xp_to_next_level:
+              type: integer
+            progress_percentage:
+              type: number
+        active_roadmap:
+          type: object
+        roadmaps:
+          type: array
+          items:
+            type: object
+        recent_achievements:
+          type: array
+          items:
+            type: object
+
+    RoadmapXpDetails:
+      type: object
+      required: [roadmap_id, roadmap_title, status, progress, earned_xp, target_xp]
+      properties:
+        roadmap_id:
+          type: integer
+          example: 1
+        roadmap_title:
+          type: string
+          example: 'Career Roadmap: Senior Backend Engineer'
+        status:
+          type: string
+          example: in_progress
+        progress:
+          type: number
+          example: 45.5
+        earned_xp:
+          type: integer
+          example: 250
+        target_xp:
+          type: integer
+          example: 500
+        tasks_completed:
+          type: integer
+          example: 8
+        total_tasks:
+          type: integer
+          example: 18
+        history:
+          type: array
+          items:
+            type: object
+        user_level:
+          type: object
+
+    AddXpResult:
+      type: object
+      required: [xp_added, earned_xp, roadmap_id, level_info, leveled_up]
+      properties:
+        xp_added:
+          type: integer
+          example: 50
+        earned_xp:
+          type: integer
+          example: 300
+        roadmap_id:
+          type: integer
+          example: 1
+        roadmap_title:
+          type: string
+          example: 'Career Roadmap: Senior Backend Engineer'
+        reason:
+          type: string
+          example: Completed TypeScript Generics module
+        level_info:
+          type: object
+        leveled_up:
+          type: boolean
+          example: false
+        previous_level:
+          type: integer
+          example: 3
+        new_level:
+          type: integer
+          example: 3
+
+

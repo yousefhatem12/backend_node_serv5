@@ -61,6 +61,58 @@ class AiReviewService {
   }
 
   /**
+   * Retrieve low-confidence CV/job extractions or ambiguous skill mappings flagged for human review
+   */
+  static async listQueue(query = {}) {
+    const queueQuery = { ...query };
+    if (!queueQuery.status) {
+      queueQuery.status = 'pending';
+    }
+
+    const page = Math.max(1, parseInt(queueQuery.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(queueQuery.per_page || queueQuery.limit, 10) || 15));
+    const offset = (page - 1) * limit;
+
+    const where = {};
+    if (queueQuery.status) where.status = queueQuery.status;
+    if (queueQuery.entity_type) where.entity_type = queueQuery.entity_type;
+    if (queueQuery.source) where.source = queueQuery.source;
+    if (queueQuery.reason || queueQuery.trigger_reason) {
+      where.trigger_reason = queueQuery.reason || queueQuery.trigger_reason;
+    }
+
+    if (queueQuery.confidence_min !== undefined || queueQuery.confidence_max !== undefined) {
+      where.confidence = {};
+      if (queueQuery.confidence_min !== undefined) where.confidence[Op.gte] = parseFloat(queueQuery.confidence_min);
+      if (queueQuery.confidence_max !== undefined) where.confidence[Op.lte] = parseFloat(queueQuery.confidence_max);
+    }
+
+    const { count, rows } = await db.AiReviewItem.findAndCountAll({
+      where,
+      include: [
+        { model: db.User, as: 'reviewer', attributes: ['id', 'name', 'email'] }
+      ],
+      order: [['confidence', 'ASC'], ['created_at', 'DESC']],
+      limit,
+      offset
+    });
+
+    const pendingCount = await db.AiReviewItem.count({ where: { status: 'pending' } }).catch(() => 0);
+
+    return {
+      items: rows,
+      total: count,
+      page,
+      limit,
+      totalPages: Math.ceil(count / limit) || 1,
+      queue_summary: {
+        total_in_queue: count,
+        total_pending: pendingCount
+      }
+    };
+  }
+
+  /**
    * Get single AI review item with full proposed payload, raw input, reviewer and audits
    */
   static async getItem(itemId) {
@@ -119,6 +171,34 @@ class AiReviewService {
         reviewer_notes: reviewerNotes
       }, { transaction });
 
+      // Apply approved item into canonical database
+      try {
+        if (item.entity_type === 'skill' && db.Skill) {
+          const skill = await db.Skill.findByPk(item.entity_id, { transaction });
+          if (skill) {
+            skill.is_verified = true;
+            await skill.save({ transaction });
+          }
+        } else if (item.entity_type === 'job_post' && db.JobPost) {
+          const job = await db.JobPost.findByPk(item.entity_id, { transaction });
+          if (job && item.proposed_payload && typeof item.proposed_payload === 'object') {
+            const updatable = ['title', 'canonical_role', 'description', 'job_type', 'employment_type', 'work_mode', 'experience_level'];
+            for (const key of updatable) {
+              if (item.proposed_payload[key] !== undefined) {
+                job[key] = item.proposed_payload[key];
+              }
+            }
+            await job.save({ transaction });
+          }
+        } else if (item.entity_type === 'cv_extraction' && db.CvExtraction) {
+          const extraction = await db.CvExtraction.findByPk(item.entity_id, { transaction });
+          if (extraction) {
+            extraction.status = 'verified';
+            await extraction.save({ transaction });
+          }
+        }
+      } catch (_) {}
+
       await transaction.commit();
 
       // Log system audit
@@ -145,7 +225,7 @@ class AiReviewService {
    */
   static async correctItem(itemId, actorId, payload, req = null) {
     const { corrected_value, decision_reason, reviewer_notes } = payload;
-    if (!corrected_value) {
+    if (corrected_value === undefined || corrected_value === null) {
       throw new ValidationError('corrected_value is required to submit a correction.');
     }
 
@@ -181,6 +261,45 @@ class AiReviewService {
         reviewer_notes: reviewer_notes || null,
         corrected_payload: corrected_value
       }, { transaction });
+
+      // Apply corrected value into canonical database
+      try {
+        if (item.entity_type === 'skill' && db.Skill) {
+          const skill = await db.Skill.findByPk(item.entity_id, { transaction });
+          if (skill) {
+            if (typeof corrected_value === 'string') {
+              skill.name = corrected_value.trim();
+              skill.normalized_name = corrected_value.trim().toLowerCase();
+            } else if (typeof corrected_value === 'object' && corrected_value !== null) {
+              if (corrected_value.name) {
+                skill.name = corrected_value.name.trim();
+                skill.normalized_name = corrected_value.name.trim().toLowerCase();
+              }
+              if (corrected_value.category) skill.category = corrected_value.category;
+            }
+            skill.is_verified = true;
+            await skill.save({ transaction });
+          }
+        } else if (item.entity_type === 'job_post' && db.JobPost) {
+          const job = await db.JobPost.findByPk(item.entity_id, { transaction });
+          if (job && typeof corrected_value === 'object' && corrected_value !== null) {
+            const updatable = ['title', 'canonical_role', 'description', 'job_type', 'employment_type', 'work_mode', 'experience_level'];
+            for (const key of updatable) {
+              if (corrected_value[key] !== undefined) {
+                job[key] = corrected_value[key];
+              }
+            }
+            await job.save({ transaction });
+          }
+        } else if (item.entity_type === 'cv_extraction' && db.CvExtraction) {
+          const extraction = await db.CvExtraction.findByPk(item.entity_id, { transaction });
+          if (extraction && typeof corrected_value === 'object') {
+            extraction.extracted_data = corrected_value;
+            extraction.status = 'verified';
+            await extraction.save({ transaction });
+          }
+        }
+      } catch (_) {}
 
       await transaction.commit();
 

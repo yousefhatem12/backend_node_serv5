@@ -110,6 +110,7 @@ class DocsController {
         url: specUrl,
         dom_id: '#swagger-ui',
         deepLinking: true,
+        persistAuthorization: true,
         presets: [
           SwaggerUIBundle.presets.apis,
           SwaggerUIStandalonePreset

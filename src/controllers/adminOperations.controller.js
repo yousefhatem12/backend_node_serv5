@@ -130,12 +130,41 @@ class AdminOperationsController {
 
   /**
    * GET /api/admin/statistics
+   * GET /api/admin/stats
    * GET /api/admin/dashboard
    */
   static async getStatistics(req, res, next) {
     try {
       const stats = await AdminOperationsService.getStatistics();
       return success(res, stats);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * GET /api/admin/stats
+   */
+  static async getStats(req, res, next) {
+    try {
+      const stats = await AdminOperationsService.getStatistics();
+      return success(res, stats);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST /api/admin/moderation/merge-duplicates
+   */
+  static async mergeDuplicates(req, res, next) {
+    try {
+      const result = await AdminOperationsService.mergeDuplicates(
+        req.body,
+        req.user?.id,
+        req
+      );
+      return actionSuccess(res, 'Duplicate listing merged successfully.', result, 200);
     } catch (err) {
       next(err);
     }

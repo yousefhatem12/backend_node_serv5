@@ -26,6 +26,23 @@ class JobSourceResource {
       updated_at: source.updated_at ? new Date(source.updated_at).toISOString() : null
     };
 
+    const errorRate = Number(source.error_rate || (source.dataValues && source.dataValues.error_rate) || 0);
+    const successRate = diagnostics && diagnostics.success_rate !== undefined
+      ? diagnostics.success_rate
+      : Math.max(0, Math.min(100, 100 - errorRate));
+    const failureRate = diagnostics && diagnostics.failure_rate !== undefined
+      ? diagnostics.failure_rate
+      : errorRate;
+
+    data.health_status = {
+      status: source.last_status || 'idle',
+      last_collection_time: source.last_run_at ? new Date(source.last_run_at).toISOString() : null,
+      success_rate: successRate,
+      failure_rate: failureRate,
+      error_rate: errorRate,
+      total_runs: diagnostics ? diagnostics.total_runs : (source.dataValues?.total_runs || 0)
+    };
+
     if (diagnostics) {
       data.diagnostics = diagnostics;
     }

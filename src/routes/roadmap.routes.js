@@ -14,7 +14,9 @@ const {
   roadmapParamSchema,
   roadmapTaskParamSchema,
   listRoadmapsQuerySchema,
-  completeRoadmapTaskSchema
+  completeRoadmapTaskSchema,
+  addRoadmapXpSchema,
+  getRoadmapXpQuerySchema
 } = require('../validators');
 
 // Candidate roadmap generation
@@ -35,12 +37,49 @@ router.get(
   RoadmapController.list
 );
 
+// Global candidate XP & roadmap achievements status
+router.get(
+  '/xp',
+  authMiddleware,
+  ensureActiveCandidate,
+  validate(getRoadmapXpQuerySchema),
+  RoadmapController.getXp
+);
+
+// Add XP for user roadmap achievement
+router.patch(
+  '/xp',
+  authMiddleware,
+  ensureActiveCandidate,
+  validate(addRoadmapXpSchema),
+  RoadmapController.addXp
+);
+
 // Show roadmap details with full hierarchy
 router.get(
   '/:roadmap',
   authMiddleware,
   validate(roadmapParamSchema),
   RoadmapController.getById
+);
+
+// Roadmap-specific XP status
+router.get(
+  '/:roadmap/xp',
+  authMiddleware,
+  ensureActiveCandidate,
+  validate(roadmapParamSchema),
+  RoadmapController.getRoadmapXp
+);
+
+// Add XP to specific roadmap
+router.patch(
+  '/:roadmap/xp',
+  authMiddleware,
+  ensureActiveCandidate,
+  validate(roadmapParamSchema),
+  validate(addRoadmapXpSchema),
+  RoadmapController.addRoadmapXp
 );
 
 // Dynamic refresh
@@ -65,3 +104,4 @@ router.patch(
 );
 
 module.exports = router;
+

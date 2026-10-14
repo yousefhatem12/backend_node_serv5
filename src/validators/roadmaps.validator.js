@@ -69,7 +69,33 @@ const refreshRoadmapSchema = z.object({
 
 const completeRoadmapTaskSchema = z.object({
   evidence: z.string().trim().max(500).optional().nullable(),
-  notes: z.string().trim().max(2000).optional().nullable()
+  notes: z.string().trim().max(2000).optional().nullable(),
+  xp: z.coerce.number().int().positive().optional().nullable()
+});
+
+const addRoadmapXpSchema = z.preprocess((val) => {
+  if (val && typeof val === 'object') {
+    const copy = { ...val };
+    if (copy.points !== undefined && copy.xp === undefined) {
+      copy.xp = copy.points;
+    } else if (copy.amount !== undefined && copy.xp === undefined) {
+      copy.xp = copy.amount;
+    }
+    return copy;
+  }
+  return val;
+}, z.object({
+  xp: z.coerce.number().int().positive({ message: 'xp must be a positive integer.' }),
+  reason: z.string().trim().max(255).optional().nullable(),
+  roadmap_id: z.coerce.number().int().positive().optional().nullable(),
+  task_id: z.coerce.number().int().positive().optional().nullable(),
+  milestone_id: z.coerce.number().int().positive().optional().nullable()
+}));
+
+const getRoadmapXpQuerySchema = z.object({
+  query: z.object({
+    roadmap_id: z.coerce.number().int().positive().optional()
+  }).optional()
 });
 
 module.exports = {
@@ -78,5 +104,8 @@ module.exports = {
   roadmapTaskParamSchema,
   createRoadmapSchema,
   refreshRoadmapSchema,
-  completeRoadmapTaskSchema
+  completeRoadmapTaskSchema,
+  addRoadmapXpSchema,
+  getRoadmapXpQuerySchema
 };
+

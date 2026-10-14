@@ -51,7 +51,13 @@ const {
   createAdminUserSchema,
   updateAdminUserSchema,
   updateUserStatusSchema,
-  updateUserRoleSchema
+  updateUserRoleSchema,
+  listTaxonomySkillsQuerySchema,
+  taxonomySkillParamSchema,
+  createTaxonomySkillSchema,
+  updateTaxonomySkillSchema,
+  sourceParamSchema,
+  mergeDuplicatesSchema
 } = require('../validators');
 
 // Must be authenticated and active admin (or super_admin)
@@ -59,6 +65,11 @@ router.use(authMiddleware, ensureActiveAdmin);
 
 
 // --- SKILLS TAXONOMY ---
+router.get('/taxonomy/skills', validate(listTaxonomySkillsQuerySchema), AdminSkillController.listTaxonomySkills);
+router.post('/taxonomy/skills', validate(createTaxonomySkillSchema), AdminSkillController.createTaxonomySkill);
+router.patch('/taxonomy/skills/:id', validate(taxonomySkillParamSchema), validate(updateTaxonomySkillSchema), AdminSkillController.updateTaxonomySkill);
+router.delete('/taxonomy/skills/:id', validate(taxonomySkillParamSchema), AdminSkillController.deleteTaxonomySkill);
+
 router.post('/skills', validate(createSkillSchema), AdminSkillController.createSkill);
 router.patch('/skills/:id', validate(idParamSchema), validate(updateSkillSchema), AdminSkillController.updateSkill);
 router.post('/skills/:sourceSkillId/merge', validate(mergeSkillSchema), AdminSkillController.mergeSkills);
@@ -197,6 +208,14 @@ router.post('/notifications/compose', validate(adminComposeNotificationSchema), 
 router.post('/notifications', validate(adminComposeNotificationSchema), NotificationController.adminCompose);
 
 // --- JOB SOURCES & INGESTION PIPELINE ---
+router.get('/sources', validate(listJobSourcesQuerySchema), AdminJobSourceController.listSources);
+router.post('/sources', validate(createJobSourceSchema), AdminJobSourceController.createSource);
+router.get('/sources/:id', validate(sourceParamSchema), AdminJobSourceController.showSource);
+router.patch('/sources/:id', validate(sourceParamSchema), validate(updateJobSourceSchema), AdminJobSourceController.updateSource);
+router.put('/sources/:id', validate(sourceParamSchema), validate(updateJobSourceSchema), AdminJobSourceController.updateSource);
+router.delete('/sources/:id', validate(sourceParamSchema), AdminJobSourceController.deleteSource);
+router.post('/sources/:id/trigger', validate(sourceParamSchema), validate(triggerRunSchema), AdminJobSourceController.triggerRun);
+
 router.get('/job-sources', validate(listJobSourcesQuerySchema), AdminJobSourceController.listSources);
 router.post('/job-sources', validate(createJobSourceSchema), AdminJobSourceController.createSource);
 router.get('/job-sources/:jobSource', validate(jobSourceParamSchema), AdminJobSourceController.showSource);
@@ -216,9 +235,17 @@ router.get('/raw-jobs/:rawJob', validate(rawJobParamSchema), AdminJobSourceContr
 router.get('/job-matches', validate(adminListMatchesQuerySchema), MatchController.adminListMatches);
 
 // --- AI REVIEW QUEUE (HUMAN-IN-THE-LOOP) ---
+router.get('/ai-review/queue', validate(listAiReviewItemsQuerySchema), AdminAiReviewController.getQueue);
+router.get('/ai-review/:id', validate(sourceParamSchema), AdminAiReviewController.showItem);
+router.post('/ai-review/:id/approve', validate(sourceParamSchema), validate(approveAiReviewSchema), AdminAiReviewController.approveItem);
+router.patch('/ai-review/:id/correct', validate(sourceParamSchema), validate(correctAiReviewSchema), AdminAiReviewController.correctItem);
+router.post('/ai-review/:id/correct', validate(sourceParamSchema), validate(correctAiReviewSchema), AdminAiReviewController.correctItem);
+router.post('/ai-review/:id/reject', validate(sourceParamSchema), validate(rejectAiReviewSchema), AdminAiReviewController.rejectItem);
+
 router.get('/ai-review-items', validate(listAiReviewItemsQuerySchema), AdminAiReviewController.listItems);
 router.get('/ai-review-items/:aiReviewItem', validate(aiReviewItemParamSchema), AdminAiReviewController.showItem);
 router.post('/ai-review-items/:aiReviewItem/approve', validate(aiReviewItemParamSchema), validate(approveAiReviewSchema), AdminAiReviewController.approveItem);
+router.patch('/ai-review-items/:aiReviewItem/correct', validate(aiReviewItemParamSchema), validate(correctAiReviewSchema), AdminAiReviewController.correctItem);
 router.post('/ai-review-items/:aiReviewItem/correct', validate(aiReviewItemParamSchema), validate(correctAiReviewSchema), AdminAiReviewController.correctItem);
 router.post('/ai-review-items/:aiReviewItem/reject', validate(aiReviewItemParamSchema), validate(rejectAiReviewSchema), AdminAiReviewController.rejectItem);
 
@@ -245,7 +272,11 @@ router.put('/user/:user', validate(adminUserParamSchema), validate(updateAdminUs
 router.delete('/user/:user', validate(adminUserParamSchema), AdminOperationsController.deleteUser);
 router.post('/user/:user/delete', validate(adminUserParamSchema), AdminOperationsController.deleteUser);
 
+// --- DATA MODERATION (MERGE DUPLICATES) ---
+router.post('/moderation/merge-duplicates', validate(mergeDuplicatesSchema), AdminOperationsController.mergeDuplicates);
+
 // --- PLATFORM STATISTICS & DASHBOARD ---
+router.get('/stats', AdminOperationsController.getStats);
 router.get('/statistics', AdminOperationsController.getStatistics);
 router.get('/dashboard', AdminOperationsController.getStatistics);
 

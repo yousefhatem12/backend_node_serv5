@@ -536,13 +536,46 @@ class AdminOperationsService {
     }));
 
 
-    // 8. Sources Health
+    // 8. Sources Health & Freshness
     const totalSources = await db.JobSource.count();
     const activeSources = await db.JobSource.count({ where: { is_active: true } });
     const totalRuns = await db.IngestionRun.count();
     const successfulRuns = await db.IngestionRun.count({ where: { status: 'completed' } });
 
+    let freshestRun = null;
+    try {
+      freshestRun = await db.IngestionRun.findOne({
+        order: [['created_at', 'DESC']],
+        attributes: ['id', 'created_at', 'status', 'job_source_id']
+      });
+    } catch (_) {}
+
+    const now = new Date();
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    let freshSourcesCount = 0;
+    try {
+      freshSourcesCount = await db.JobSource.count({
+        where: {
+          last_run_at: { [Op.gte]: oneDayAgo }
+        }
+      });
+    } catch (_) {}
+
+    const sourceFreshness = {
+      latest_collection_time: freshestRun ? freshestRun.created_at : null,
+      sources_active_last_24h: freshSourcesCount,
+      total_active_sources: activeSources,
+      is_fresh: Boolean(freshSourcesCount > 0 || (freshestRun && (now - new Date(freshestRun.created_at)) < 48 * 3600 * 1000))
+    };
+
     return {
+      active_users_count: activeUsers,
+      active_jobs_volume: activeJobs,
+      application_counts: {
+        total: totalApplications,
+        by_status: appStatusCounts
+      },
+      source_freshness: sourceFreshness,
       users: {
         total: totalUsers,
         active: activeUsers,
@@ -577,9 +610,195 @@ class AdminOperationsService {
         total_sources: totalSources,
         active_sources: activeSources,
         total_runs: totalRuns,
-        successful_runs: successfulRuns
+        successful_runs: successfulRuns,
+        freshness: sourceFreshness
       }
     };
+  }
+
+  /**
+   * Merge duplicate job or company listings with complete audit trail
+   */
+  static async mergeDuplicates(payload, actorId, req = null) {
+    const rawType = (payload.entity_type || '').trim().toLowerCase();
+    const sourceId = payload.source_id || payload.duplicate_id;
+    const targetId = payload.target_id || payload.primary_id;
+    const reason = payload.reason || 'Merged duplicate listing via admin moderation portal.';
+
+    if (!sourceId || !targetId) {
+      throw new ValidationError('Both source_id (duplicate) and target_id (primary canonical) are required.');
+    }
+
+    if (Number(sourceId) === Number(targetId)) {
+      throw new ValidationError('Cannot merge a record into itself.');
+    }
+
+    // 1. Company Merge
+    if (rawType === 'company' || rawType === 'companies') {
+      const companyService = require('./company.service');
+      const result = await companyService.mergeCompanies(sourceId, targetId);
+
+      await AuditLogService.logAction({
+        actorId,
+        action: 'moderation.merge_companies',
+        entityType: 'Company',
+        entityId: targetId,
+        source: 'admin_portal',
+        oldValues: { duplicate_company_id: Number(sourceId) },
+        newValues: {
+          canonical_company_id: Number(targetId),
+          reassigned_jobs_count: result.reassigned_jobs_count,
+          reason
+        },
+        req
+      });
+
+      return {
+        entity_type: 'company',
+        canonical_record: result.targetCompany,
+        merged_source_id: Number(sourceId),
+        reassigned_relations: {
+          jobs: result.reassigned_jobs_count
+        },
+        reason
+      };
+    }
+
+    // 2. Job Post Merge
+    if (rawType === 'job' || rawType === 'jobs' || rawType === 'job_post' || rawType === 'job_posts') {
+      const sourceJob = await db.JobPost.findByPk(sourceId);
+      if (!sourceJob) {
+        throw new NotFoundError('Source job listing not found.');
+      }
+
+      const targetJob = await db.JobPost.findByPk(targetId);
+      if (!targetJob) {
+        throw new NotFoundError('Target canonical job listing not found.');
+      }
+
+      let reassignedApplications = 0;
+      let reassignedSavedJobs = 0;
+      let reassignedSkills = 0;
+      let reassignedRawJobs = 0;
+
+      const performMerge = async (t) => {
+        // Reassign applications
+        if (db.Application) {
+          const apps = await db.Application.findAll({ where: { job_post_id: sourceJob.id }, transaction: t });
+          for (const app of apps) {
+            const exists = await db.Application.findOne({
+              where: { job_post_id: targetJob.id, user_id: app.user_id },
+              transaction: t
+            });
+            if (exists) {
+              await app.destroy({ transaction: t });
+            } else {
+              app.job_post_id = targetJob.id;
+              await app.save({ transaction: t });
+              reassignedApplications++;
+            }
+          }
+        }
+
+        // Reassign saved jobs
+        if (db.SavedJob) {
+          const savedList = await db.SavedJob.findAll({ where: { job_post_id: sourceJob.id }, transaction: t });
+          for (const sj of savedList) {
+            const exists = await db.SavedJob.findOne({
+              where: { job_post_id: targetJob.id, user_id: sj.user_id },
+              transaction: t
+            });
+            if (exists) {
+              await sj.destroy({ transaction: t });
+            } else {
+              sj.job_post_id = targetJob.id;
+              await sj.save({ transaction: t });
+              reassignedSavedJobs++;
+            }
+          }
+        }
+
+        // Reassign / copy job skills
+        if (db.JobSkill) {
+          const sourceSkills = await db.JobSkill.findAll({ where: { job_post_id: sourceJob.id }, transaction: t });
+          for (const js of sourceSkills) {
+            const exists = await db.JobSkill.findOne({
+              where: { job_post_id: targetJob.id, skill_id: js.skill_id },
+              transaction: t
+            });
+            if (!exists) {
+              await db.JobSkill.create({
+                job_post_id: targetJob.id,
+                skill_id: js.skill_id,
+                is_required: js.is_required || false
+              }, { transaction: t });
+              reassignedSkills++;
+            }
+          }
+        }
+
+        // Reassign RawJobs
+        if (db.RawJob) {
+          const [affectedRaw] = await db.RawJob.update(
+            { job_post_id: targetJob.id },
+            { where: { job_post_id: sourceJob.id }, transaction: t }
+          );
+          reassignedRawJobs = affectedRaw;
+        }
+
+        // Deactivate & soft-delete/destroy duplicate source job
+        sourceJob.is_active = false;
+        await sourceJob.save({ transaction: t });
+        await sourceJob.destroy({ transaction: t });
+      };
+
+      if (db.sequelize && typeof db.sequelize.transaction === 'function') {
+        await db.sequelize.transaction(performMerge);
+      } else {
+        await performMerge(null);
+      }
+
+      await AuditLogService.logAction({
+        actorId,
+        action: 'moderation.merge_jobs',
+        entityType: 'JobPost',
+        entityId: targetJob.id,
+        source: 'admin_portal',
+        oldValues: {
+          duplicate_job_id: Number(sourceId),
+          title: sourceJob.title
+        },
+        newValues: {
+          canonical_job_id: Number(targetId),
+          canonical_title: targetJob.title,
+          reassigned_applications: reassignedApplications,
+          reassigned_saved_jobs: reassignedSavedJobs,
+          reassigned_skills: reassignedSkills,
+          reassigned_raw_jobs: reassignedRawJobs,
+          reason
+        },
+        req
+      });
+
+      return {
+        entity_type: 'job',
+        canonical_record: {
+          id: Number(targetJob.id),
+          title: targetJob.title,
+          company_id: Number(targetJob.company_id)
+        },
+        merged_source_id: Number(sourceId),
+        reassigned_relations: {
+          applications: reassignedApplications,
+          saved_jobs: reassignedSavedJobs,
+          skills: reassignedSkills,
+          raw_jobs: reassignedRawJobs
+        },
+        reason
+      };
+    }
+
+    throw new ValidationError(`Unsupported entity_type: "${payload.entity_type}". Must be "job" or "company".`);
   }
 }
 

@@ -179,6 +179,81 @@ const updateUserRoleSchema = z.object({
   })
 });
 
+// --- Skills & Taxonomy Management ---
+const listTaxonomySkillsQuerySchema = z.object({
+  query: z.object({
+    page: z.coerce.number().int().positive().default(1),
+    per_page: z.coerce.number().int().positive().max(100).default(15),
+    search: z.string().optional(),
+    q: z.string().optional(),
+    category: z.string().optional(),
+    skill_category_id: z.coerce.number().int().positive().optional(),
+    is_verified: z.union([z.boolean(), z.enum(['true', 'false', '1', '0'])]).optional()
+  }).partial()
+});
+
+const taxonomySkillParamSchema = z.object({
+  params: z.object({
+    id: z.coerce.number().int().positive({ message: 'The skill id must be a positive integer.' })
+  })
+});
+
+const createTaxonomySkillSchema = z.object({
+  body: z.object({
+    name: z.string().trim().min(1, 'Name is required.').optional(),
+    alias: z.string().trim().min(1).optional(),
+    skill_id: z.coerce.number().int().positive().optional(),
+    canonical_skill_id: z.coerce.number().int().positive().optional(),
+    category: z.string().trim().max(100).optional().nullable(),
+    skill_category_id: z.coerce.number().int().positive().optional().nullable(),
+    aliases: z.array(z.string().trim().min(1)).optional(),
+    is_verified: z.union([z.boolean(), z.enum(['true', 'false', '1', '0'])]).optional(),
+    type: z.enum(['skill', 'alias', 'canonical']).optional()
+  }).refine(data => Boolean(data.name || (data.alias && (data.skill_id || data.canonical_skill_id))), {
+    message: 'Either name (for canonical skill) or alias with skill_id must be provided.',
+    path: ['name']
+  })
+});
+
+const updateTaxonomySkillSchema = z.object({
+  body: z.object({
+    name: z.string().trim().min(1).optional(),
+    category: z.string().trim().max(100).optional().nullable(),
+    skill_category_id: z.coerce.number().int().positive().optional().nullable(),
+    is_verified: z.union([z.boolean(), z.enum(['true', 'false', '1', '0'])]).optional(),
+    is_active: z.union([z.boolean(), z.enum(['true', 'false', '1', '0'])]).optional(),
+    aliases: z.array(z.string().trim().min(1)).optional(),
+    alias: z.string().trim().min(1).optional()
+  })
+});
+
+// --- Sources Management ---
+const sourceParamSchema = z.object({
+  params: z.object({
+    id: z.string().min(1, { message: 'The source identifier must not be empty.' })
+  })
+});
+
+// --- Moderation & Merging ---
+const mergeDuplicatesSchema = z.object({
+  body: z.object({
+    entity_type: z.preprocess(
+      (val) => typeof val === 'string' ? val.trim().toLowerCase() : val,
+      z.enum(['job', 'jobs', 'job_post', 'job_posts', 'company', 'companies'], {
+        required_error: 'entity_type is required (job or company).'
+      })
+    ),
+    source_id: z.coerce.number().int().positive().optional(),
+    duplicate_id: z.coerce.number().int().positive().optional(),
+    target_id: z.coerce.number().int().positive().optional(),
+    primary_id: z.coerce.number().int().positive().optional(),
+    reason: z.string().max(500).optional()
+  }).refine(data => Boolean((data.source_id || data.duplicate_id) && (data.target_id || data.primary_id)), {
+    message: 'Both source_id (duplicate) and target_id (primary) are required.',
+    path: ['source_id']
+  })
+});
+
 module.exports = {
   listAiReviewItemsQuerySchema,
   aiReviewItemParamSchema,
@@ -191,5 +266,11 @@ module.exports = {
   createAdminUserSchema,
   updateAdminUserSchema,
   updateUserStatusSchema,
-  updateUserRoleSchema
+  updateUserRoleSchema,
+  listTaxonomySkillsQuerySchema,
+  taxonomySkillParamSchema,
+  createTaxonomySkillSchema,
+  updateTaxonomySkillSchema,
+  sourceParamSchema,
+  mergeDuplicatesSchema
 };

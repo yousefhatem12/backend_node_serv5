@@ -285,14 +285,43 @@ class RoadmapService {
     task.completed_at = new Date();
     await task.save();
 
+    // Award task XP into roadmap achievement metadata
+    const taskWeight = Number(task.weight || 1);
+    const xpToAward = payload.xp ? Number(payload.xp) : (taskWeight * 25);
+
+    let metadata = {};
+    try {
+      metadata = typeof roadmap.metadata === 'string' ? JSON.parse(roadmap.metadata) : (roadmap.metadata || {});
+    } catch {
+      metadata = {};
+    }
+    const currentRoadmapXp = Number(metadata.earned_xp !== undefined ? metadata.earned_xp : (metadata.xp !== undefined ? metadata.xp : 0));
+    const newRoadmapXp = currentRoadmapXp + xpToAward;
+    metadata.earned_xp = newRoadmapXp;
+    metadata.xp = newRoadmapXp;
+
+    const history = Array.isArray(metadata.xp_history) ? [...metadata.xp_history] : [];
+    history.push({
+      amount: xpToAward,
+      reason: `Completed task: ${task.title || 'Roadmap task'}`,
+      task_id: Number(task.id),
+      awarded_at: new Date().toISOString()
+    });
+    metadata.xp_history = history;
+    roadmap.metadata = metadata;
+    await roadmap.save();
+
     // Recalculate roadmap progress and hierarchy statuses
     const updatedRoadmap = await this.recalculateRoadmapProgress(roadmap.id);
 
     return {
       roadmap: updatedRoadmap,
-      task
+      task,
+      xp_earned: xpToAward,
+      current_roadmap_xp: newRoadmapXp
     };
   }
+
 
   /**
    * Recalculate progress for a roadmap
@@ -516,6 +545,351 @@ class RoadmapService {
       throw err;
     }
   }
+
+  /**
+   * Calculate leveling metrics, thresholds, and titles for gamified roadmaps
+   */
+  static calculateLevel(totalXp = 0) {
+    const xp = Math.max(0, Number(totalXp) || 0);
+    let level = 1;
+    let threshold = 100;
+    let step = 150;
+
+    while (xp >= threshold) {
+      level++;
+      threshold += step;
+      step += 50;
+    }
+
+    const prevThreshold = threshold - step + 50;
+    const xpInLevel = Math.max(0, xp - prevThreshold);
+    const xpForNext = threshold - prevThreshold;
+    const toNext = Math.max(0, threshold - xp);
+    const progressPct = Math.min(100, Number(((xpInLevel / xpForNext) * 100).toFixed(1)));
+
+    const titles = [
+      'Beginner Explorer',
+      'Skill Builder',
+      'Knowledge Seeker',
+      'Career Climber',
+      'Roadmap Achiever',
+      'Advanced Practitioner',
+      'Domain Specialist',
+      'Master Strategist'
+    ];
+    const title = titles[Math.min(level - 1, titles.length - 1)];
+
+    return {
+      level,
+      title,
+      total_xp: xp,
+      current_level_xp: xpInLevel,
+      next_level_xp: threshold,
+      xp_to_next_level: toNext,
+      progress_percentage: progressPct
+    };
+  }
+
+  /**
+   * Retrieve total XP, level metrics, and roadmap achievement breakdown for a user
+   */
+  static async getUserXp(userId, options = {}) {
+    // 1. Fetch user roadmaps
+    const roadmaps = await db.Roadmap.findAll({
+      where: { user_id: userId },
+      include: [
+        {
+          model: db.RoadmapPhase,
+          as: 'phases',
+          include: [
+            {
+              model: db.RoadmapMilestone,
+              as: 'milestones',
+              include: [{ model: db.RoadmapTask, as: 'tasks' }]
+            }
+          ]
+        }
+      ],
+      order: [['created_at', 'DESC']]
+    });
+
+    let cumulativeRoadmapXp = 0;
+    const roadmapSummaries = [];
+    let recentHistory = [];
+
+    for (const r of roadmaps) {
+      let metadata = {};
+      try {
+        metadata = typeof r.metadata === 'string' ? JSON.parse(r.metadata) : (r.metadata || {});
+      } catch {
+        metadata = {};
+      }
+
+      // Calculate tasks and weights
+      let completedTasksCount = 0;
+      let totalTasksCount = 0;
+      let calculatedTaskXp = 0;
+      let totalPossibleXp = 0;
+
+      for (const phase of (r.phases || [])) {
+        for (const milestone of (phase.milestones || [])) {
+          for (const task of (milestone.tasks || [])) {
+            totalTasksCount++;
+            const w = Number(task.weight || 1);
+            const taskXpVal = w * 25;
+            totalPossibleXp += taskXpVal;
+            if (task.status === 'completed') {
+              completedTasksCount++;
+              calculatedTaskXp += taskXpVal;
+            }
+          }
+        }
+      }
+
+      totalPossibleXp += 100;
+      if (r.status === 'completed') {
+        calculatedTaskXp += 100;
+      }
+
+      const explicitXp = Number(metadata.earned_xp !== undefined ? metadata.earned_xp : (metadata.xp !== undefined ? metadata.xp : null));
+      const earnedXp = explicitXp !== null ? explicitXp : calculatedTaskXp;
+      cumulativeRoadmapXp += earnedXp;
+
+      const history = Array.isArray(metadata.xp_history) ? metadata.xp_history : [];
+      if (history.length > 0) {
+        recentHistory = recentHistory.concat(
+          history.map(h => ({
+            ...h,
+            roadmap_id: Number(r.id),
+            roadmap_title: r.title
+          }))
+        );
+      }
+
+      roadmapSummaries.push({
+        id: Number(r.id),
+        title: r.title,
+        status: r.status,
+        progress: Number(parseFloat(r.progress || 0).toFixed(2)),
+        earned_xp: earnedXp,
+        target_xp: Math.max(earnedXp, totalPossibleXp),
+        tasks_completed: completedTasksCount,
+        total_tasks: totalTasksCount
+      });
+    }
+
+    recentHistory.sort((a, b) => new Date(b.awarded_at || 0) - new Date(a.awarded_at || 0));
+
+    // Also check CandidateProfile if xp is stored directly
+    let profileXp = 0;
+    try {
+      const candidateProfile = await db.CandidateProfile.findOne({
+        where: { user_id: userId }
+      });
+      if (candidateProfile && candidateProfile.xp !== undefined) {
+        profileXp = Number(candidateProfile.xp) || 0;
+      }
+    } catch {
+      profileXp = 0;
+    }
+
+    const finalTotalXp = Math.max(cumulativeRoadmapXp, profileXp);
+    const levelInfo = this.calculateLevel(finalTotalXp);
+    const activeRoadmap = roadmapSummaries.find(r => r.status === 'in_progress') || roadmapSummaries[0] || null;
+
+    return {
+      user_id: Number(userId),
+      total_xp: finalTotalXp,
+      level: levelInfo.level,
+      level_title: levelInfo.title,
+      level_info: levelInfo,
+      active_roadmap: activeRoadmap,
+      roadmaps: roadmapSummaries,
+      recent_achievements: recentHistory.slice(0, 10)
+    };
+  }
+
+  /**
+   * Retrieve XP metrics for a specific roadmap
+   */
+  static async getRoadmapXp(roadmapId, userId, options = {}) {
+    const roadmap = await db.Roadmap.findByPk(roadmapId, {
+      include: [
+        {
+          model: db.RoadmapPhase,
+          as: 'phases',
+          include: [
+            {
+              model: db.RoadmapMilestone,
+              as: 'milestones',
+              include: [{ model: db.RoadmapTask, as: 'tasks' }]
+            }
+          ]
+        }
+      ]
+    });
+
+    if (!roadmap) {
+      throw new NotFoundError('Roadmap not found.');
+    }
+
+    const isAdmin = options.isAdmin || false;
+    if (!isAdmin && Number(roadmap.user_id) !== Number(userId)) {
+      throw new ForbiddenError('You do not have access to this roadmap.');
+    }
+
+    let metadata = {};
+    try {
+      metadata = typeof roadmap.metadata === 'string' ? JSON.parse(roadmap.metadata) : (roadmap.metadata || {});
+    } catch {
+      metadata = {};
+    }
+
+    let completedTasksCount = 0;
+    let totalTasksCount = 0;
+    let calculatedTaskXp = 0;
+    let totalPossibleXp = 0;
+
+    for (const phase of (roadmap.phases || [])) {
+      for (const milestone of (phase.milestones || [])) {
+        for (const task of (milestone.tasks || [])) {
+          totalTasksCount++;
+          const w = Number(task.weight || 1);
+          const taskXpVal = w * 25;
+          totalPossibleXp += taskXpVal;
+          if (task.status === 'completed') {
+            completedTasksCount++;
+            calculatedTaskXp += taskXpVal;
+          }
+        }
+      }
+    }
+
+    totalPossibleXp += 100;
+    if (roadmap.status === 'completed') {
+      calculatedTaskXp += 100;
+    }
+
+    const explicitXp = Number(metadata.earned_xp !== undefined ? metadata.earned_xp : (metadata.xp !== undefined ? metadata.xp : null));
+    const earnedXp = explicitXp !== null ? explicitXp : calculatedTaskXp;
+    const history = Array.isArray(metadata.xp_history) ? metadata.xp_history : [];
+
+    const userXpSummary = await this.getUserXp(roadmap.user_id);
+
+    return {
+      roadmap_id: Number(roadmap.id),
+      roadmap_title: roadmap.title,
+      status: roadmap.status,
+      progress: Number(parseFloat(roadmap.progress || 0).toFixed(2)),
+      earned_xp: earnedXp,
+      target_xp: Math.max(earnedXp, totalPossibleXp),
+      tasks_completed: completedTasksCount,
+      total_tasks: totalTasksCount,
+      history,
+      user_level: userXpSummary.level_info
+    };
+  }
+
+  /**
+   * Add / award XP for a user to achieve their roadmap
+   */
+  static async addXp(userId, payload) {
+    const xpToAdd = Number(payload.xp);
+    if (!xpToAdd || xpToAdd <= 0) {
+      throw new ValidationError('XP amount must be a positive integer.');
+    }
+
+    let roadmapId = payload.roadmap_id;
+    let roadmap = null;
+
+    if (roadmapId) {
+      roadmap = await db.Roadmap.findByPk(roadmapId);
+      if (!roadmap) {
+        throw new NotFoundError('Specified roadmap not found.');
+      }
+      if (Number(roadmap.user_id) !== Number(userId)) {
+        throw new ForbiddenError('You do not have permission to add XP to this roadmap.');
+      }
+    } else {
+      // Find active or latest roadmap for this user
+      roadmap = await db.Roadmap.findOne({
+        where: { user_id: userId, status: 'in_progress' },
+        order: [['updated_at', 'DESC']]
+      });
+      if (!roadmap) {
+        roadmap = await db.Roadmap.findOne({
+          where: { user_id: userId },
+          order: [['updated_at', 'DESC']]
+        });
+      }
+      if (!roadmap) {
+        throw new NotFoundError('No roadmap found for candidate. Please generate a roadmap first.');
+      }
+    }
+
+    // Get current total XP before adding
+    const prevUserXp = await this.getUserXp(userId);
+    const prevLevelInfo = prevUserXp.level_info;
+
+    // Update roadmap metadata
+    let metadata = {};
+    try {
+      metadata = typeof roadmap.metadata === 'string' ? JSON.parse(roadmap.metadata) : (roadmap.metadata || {});
+    } catch {
+      metadata = {};
+    }
+
+    const currentRoadmapXp = Number(metadata.earned_xp !== undefined ? metadata.earned_xp : (metadata.xp !== undefined ? metadata.xp : 0));
+    const newRoadmapXp = currentRoadmapXp + xpToAdd;
+
+    metadata.earned_xp = newRoadmapXp;
+    metadata.xp = newRoadmapXp;
+
+    const history = Array.isArray(metadata.xp_history) ? [...metadata.xp_history] : [];
+    const awardRecord = {
+      amount: xpToAdd,
+      reason: payload.reason ? String(payload.reason).trim() : 'Roadmap achievement',
+      task_id: payload.task_id ? Number(payload.task_id) : null,
+      milestone_id: payload.milestone_id ? Number(payload.milestone_id) : null,
+      awarded_at: new Date().toISOString()
+    };
+    history.push(awardRecord);
+    metadata.xp_history = history;
+
+    roadmap.metadata = metadata;
+    await roadmap.save();
+
+    // Also update CandidateProfile if present and has xp field
+    try {
+      const candidateProfile = await db.CandidateProfile.findOne({
+        where: { user_id: userId }
+      });
+      if (candidateProfile && candidateProfile.xp !== undefined) {
+        candidateProfile.xp = (Number(candidateProfile.xp) || 0) + xpToAdd;
+        await candidateProfile.save();
+      }
+    } catch {
+      // ignore if column not present
+    }
+
+    // Calculate new leveling
+    const newUserXp = await this.getUserXp(userId);
+    const newLevelInfo = newUserXp.level_info;
+    const leveledUp = newLevelInfo.level > prevLevelInfo.level;
+
+    return {
+      xp_added: xpToAdd,
+      earned_xp: newRoadmapXp,
+      roadmap_id: Number(roadmap.id),
+      roadmap_title: roadmap.title,
+      reason: awardRecord.reason,
+      level_info: newLevelInfo,
+      leveled_up: leveledUp,
+      previous_level: prevLevelInfo.level,
+      new_level: newLevelInfo.level
+    };
+  }
 }
 
 module.exports = RoadmapService;
+
