@@ -6,6 +6,7 @@ SkillMatch is a production-grade Career Intelligence & Job-Matching platform bac
 
 ## 📋 Table of Contents
 - [Architecture & Design Principles](#-architecture--design-principles)
+- [🤖 AI Endpoints & Integration Guide (Parts 1-12)](./README_AI_INTEGRATION.md)
 - [Prerequisites & Environment Setup](#-prerequisites--environment-setup)
 - [Database Migrations & Seeders](#-database-migrations--seeders)
 - [Running the Application](#-running-the-application)
