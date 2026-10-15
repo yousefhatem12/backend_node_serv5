@@ -1160,7 +1160,7 @@ paths:
     get:
       tags: [CV]
       summary: Stream and preview CV PDF document inline
-      description: Streams the candidate's uploaded CV file as inline binary PDF data (`Content-Type: application/pdf`). Non-PDF files (e.g. DOCX) return 415 Unsupported Media Type. Strict ownership is enforced.
+      description: "Streams the candidate's uploaded CV file as inline binary PDF data (`Content-Type: application/pdf`). Non-PDF files (e.g. DOCX) return 415 Unsupported Media Type. Strict ownership is enforced."
       parameters:
         - $ref: '#/components/parameters/AcceptLanguage'
         - name: cvDocument

@@ -35,7 +35,8 @@ app.use((req, res, next) => {
     !parsedPath.startsWith('/api') &&
     !parsedPath.startsWith('/storage') &&
     !parsedPath.startsWith('/uploads') &&
-    !parsedPath.startsWith('/docs')
+    !parsedPath.startsWith('/docs') &&
+    !parsedPath.startsWith('/openapi.json')
   ) {
     req.url = '/api' + (req.url.startsWith('/') ? req.url : '/' + req.url);
   }
@@ -60,8 +61,10 @@ app.use(localeMiddleware);
 app.use('/storage', express.static(path.resolve(config.storage.path)));
 app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
 
-// Convenience redirect: /docs -> /api/docs
+// Convenience redirect: /docs -> /api/docs and /openapi.json -> /api/docs/openapi.json
 app.get('/docs', (req, res) => res.redirect('/api/docs'));
+app.get('/openapi.json', (req, res) => res.redirect('/api/docs/openapi.json'));
+app.get('/api/openapi.json', (req, res) => res.redirect('/api/docs/openapi.json'));
 
 // Mount all API routes under /api and root /
 app.use('/api', apiRoutes);

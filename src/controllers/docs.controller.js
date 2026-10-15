@@ -3,24 +3,101 @@
 const fs = require('fs');
 const path = require('path');
 const yaml = require('yaml');
+const logger = require('../utils/logger');
 
-// Parse the YAML spec once at startup
-const specPath = path.resolve(__dirname, '../../docs/openapi.yaml');
+// Robust multi-path resolution for cPanel and diverse deployment working directories
+const candidateJsonPaths = [
+  path.resolve(__dirname, '../../docs/openapi.json'),
+  path.resolve(process.cwd(), 'docs/openapi.json'),
+  path.resolve(__dirname, '../docs/openapi.json'),
+  path.resolve(process.cwd(), 'openapi.json')
+];
+
+const candidateYamlPaths = [
+  path.resolve(__dirname, '../../docs/openapi.yaml'),
+  path.resolve(process.cwd(), 'docs/openapi.yaml'),
+  path.resolve(__dirname, '../../docs/openapi.yml'),
+  path.resolve(process.cwd(), 'docs/openapi.yml')
+];
+
+// Fallback valid OpenAPI 3.0 specification so Swagger UI never crashes with an ambiguous 500
+const FALLBACK_SPEC = Object.freeze({
+  openapi: '3.0.3',
+  info: {
+    title: 'SkillMatch API',
+    version: '1.0.0',
+    description: 'SkillMatch Career Intelligence & Job Matching Platform Backend (Fallback Mode - Full definition temporarily unavailable)'
+  },
+  servers: [{ url: '/api', description: 'SkillMatch API Base' }],
+  paths: {}
+});
+
 let cachedSpec = null;
 
-function loadSpec() {
-  if (!cachedSpec) {
-    const fileContent = fs.readFileSync(specPath, 'utf8');
-    cachedSpec = yaml.parse(fileContent);
+/**
+ * Robustly load OpenAPI specification from JSON or YAML files across candidate paths.
+ * Automatically synchronizes/generates openapi.json from openapi.yaml if missing.
+ */
+function loadSpec(forceReload = false) {
+  if (cachedSpec && !forceReload) {
+    return cachedSpec;
   }
-  return cachedSpec;
+
+  const attemptedPaths = [];
+
+  // 1. Check for openapi.json in candidate locations
+  for (const jsonPath of candidateJsonPaths) {
+    attemptedPaths.push(`[JSON] ${jsonPath}`);
+    try {
+      if (fs.existsSync(jsonPath)) {
+        const content = fs.readFileSync(jsonPath, 'utf8');
+        cachedSpec = JSON.parse(content);
+        return cachedSpec;
+      }
+    } catch (err) {
+      logger.warn(`[DocsController] Error reading or parsing JSON spec at ${jsonPath}: ${err.message}`);
+    }
+  }
+
+  // 2. Fallback to openapi.yaml, parsing and optionally auto-generating openapi.json
+  for (const yamlPath of candidateYamlPaths) {
+    attemptedPaths.push(`[YAML] ${yamlPath}`);
+    try {
+      if (fs.existsSync(yamlPath)) {
+        const fileContent = fs.readFileSync(yamlPath, 'utf8');
+        cachedSpec = yaml.parse(fileContent);
+
+        // Recreate openapi.json on disk if possible so future loads are fast & direct
+        try {
+          const targetJsonPath = path.resolve(path.dirname(yamlPath), 'openapi.json');
+          if (!fs.existsSync(targetJsonPath)) {
+            fs.writeFileSync(targetJsonPath, JSON.stringify(cachedSpec, null, 2), 'utf8');
+          }
+        } catch (writeErr) {
+          // Ignore write permission error on restricted hosting environments
+        }
+
+        return cachedSpec;
+      }
+    } catch (err) {
+      logger.error(`[DocsController] Failed to parse YAML specification at ${yamlPath}: ${err.message}`);
+    }
+  }
+
+  // 3. Fallback when neither file could be located or parsed
+  logger.error(
+    `[DocsController] Could not locate or load valid OpenAPI specification. Attempted candidate paths:\n` +
+    attemptedPaths.map(p => `  - ${p}`).join('\n')
+  );
+
+  return FALLBACK_SPEC;
 }
 
-// Pre-load at startup
+// Pre-load at startup with catch block
 try {
   loadSpec();
 } catch (err) {
-  // If file does not exist yet during initial boot, will load on first request
+  logger.error(`[DocsController] Initial OpenAPI load failed: ${err.message}`, { stack: err.stack });
 }
 
 /**
@@ -33,20 +110,46 @@ class DocsController {
    * Returns the parsed OpenAPI 3.0 specification as JSON with security/lock icons removed for free testing
    */
   static getSpec(req, res) {
-    const raw = loadSpec();
-    const spec = JSON.parse(JSON.stringify(raw));
-    delete spec.security;
-    if (spec.components && spec.components.securitySchemes) {
-      delete spec.components.securitySchemes;
-    }
-    if (spec.paths) {
-      for (const pathKey of Object.keys(spec.paths)) {
-        for (const method of Object.keys(spec.paths[pathKey])) {
-          delete spec.paths[pathKey][method].security;
+    try {
+      const raw = loadSpec();
+      const spec = JSON.parse(JSON.stringify(raw));
+
+      delete spec.security;
+      if (spec.components && spec.components.securitySchemes) {
+        delete spec.components.securitySchemes;
+      }
+      if (spec.paths) {
+        for (const pathKey of Object.keys(spec.paths)) {
+          for (const method of Object.keys(spec.paths[pathKey])) {
+            delete spec.paths[pathKey][method].security;
+          }
         }
       }
+
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      return res.status(200).json(spec);
+    } catch (err) {
+      logger.error(`[DocsController] Error preparing OpenAPI spec response: ${err.message}`, { stack: err.stack });
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      return res.status(200).json(FALLBACK_SPEC);
     }
-    return res.status(200).json(spec);
+  }
+
+  /**
+   * GET /api/docs/openapi.yaml
+   * Returns the parsed OpenAPI 3.0 specification as YAML text
+   */
+  static getYamlSpec(req, res) {
+    try {
+      const raw = loadSpec();
+      const yamlContent = yaml.stringify(raw);
+      res.setHeader('Content-Type', 'text/yaml; charset=utf-8');
+      return res.status(200).send(yamlContent);
+    } catch (err) {
+      logger.error(`[DocsController] Error serializing YAML spec: ${err.message}`, { stack: err.stack });
+      res.setHeader('Content-Type', 'text/yaml; charset=utf-8');
+      return res.status(200).send(yaml.stringify(FALLBACK_SPEC));
+    }
   }
 
   /**
@@ -104,7 +207,9 @@ class DocsController {
       // Relative path pointing to openapi.json whether accessed with or without trailing slash
       const specUrl = window.location.pathname.endsWith('/')
         ? './openapi.json'
-        : './docs/openapi.json';
+        : window.location.pathname.endsWith('/docs')
+          ? './docs/openapi.json'
+          : './openapi.json';
 
       window.ui = SwaggerUIBundle({
         url: specUrl,

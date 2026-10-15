@@ -13,7 +13,8 @@
     "migrate:test": "cross-env NODE_ENV=test npx sequelize-cli db:migrate",
     "seed": "npx sequelize-cli db:seed:all",
     "seed:mock": "node scripts/seed-mock-jobs-and-notifications.js",
-    "seed:undo": "npx sequelize-cli db:seed:undo:all"
+    "seed:undo": "npx sequelize-cli db:seed:undo:all",
+    "docs:generate": "node scripts/generate-openapi-json.js"
   },
   "keywords": [
     "skillmatch",
