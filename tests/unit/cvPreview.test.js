@@ -12,6 +12,7 @@ const cvRoutes = require('../../src/routes/cv.routes');
 const localeMiddleware = require('../../src/middlewares/locale.middleware');
 const errorHandler = require('../../src/middlewares/errorHandler');
 const config = require('../../src/config/env');
+const queueService = require('../../src/services/queue/queue.service');
 const { NotFoundError, ForbiddenError, UnsupportedMediaTypeError } = require('../../src/utils/errors');
 
 describe('CV File Preview Endpoint Unit & Integration Tests', () => {
@@ -148,7 +149,7 @@ describe('CV File Preview Endpoint Unit & Integration Tests', () => {
       });
     });
 
-    it('throws 415 UnsupportedMediaTypeError when stored file is a DOCX', async () => {
+    it('successfully validates and returns DOCX file path and mimeType for inline streaming', async () => {
       jest.spyOn(db.CvDocument, 'findByPk').mockResolvedValue({
         id: 2,
         candidate_profile_id: 100,
@@ -161,14 +162,13 @@ describe('CV File Preview Endpoint Unit & Integration Tests', () => {
         }
       });
 
-      await expect(cvService.getPreviewDocument(10, 2, 'en')).rejects.toThrow(UnsupportedMediaTypeError);
-      await expect(cvService.getPreviewDocument(10, 2, 'en')).rejects.toMatchObject({
-        statusCode: 415,
-        message: expect.stringContaining('DOCX')
-      });
+      const result = await cvService.getPreviewDocument(10, 2, 'en');
+      expect(result.filePath).toBe(sampleDocxPath);
+      expect(result.filename).toBe('ahmed_cv.docx');
+      expect(result.mimeType).toBe('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     });
 
-    it('returns Arabic localized error message when locale is ar', async () => {
+    it('returns Arabic localized error message when locale is ar and CV not found', async () => {
       jest.spyOn(db.CvDocument, 'findByPk').mockResolvedValueOnce(null);
 
       await expect(cvService.getPreviewDocument(10, 999, 'ar')).rejects.toMatchObject({
@@ -283,7 +283,7 @@ describe('CV File Preview Endpoint Unit & Integration Tests', () => {
       expect(res.body.message).toMatch(/exist in storage|not found/i);
     });
 
-    it('returns 415 Unsupported Media Type with explanatory message when CV is a DOCX', async () => {
+    it('streams DOCX binary content with matching document mime type and inline disposition', async () => {
       jest.spyOn(db.User, 'findByPk').mockResolvedValueOnce({
         id: 10,
         role: 'candidate',
@@ -305,10 +305,10 @@ describe('CV File Preview Endpoint Unit & Integration Tests', () => {
       const res = await request(app)
         .get('/api/cv/preview/2')
         .set('Authorization', `Bearer ${candidateToken}`)
-        .expect(415);
+        .expect(200);
 
-      expect(res.body.message).toMatch(/DOCX/i);
-      expect(res.body.message).toMatch(/cannot be previewed inline as PDF/i);
+      expect(res.headers['content-type']).toContain('wordprocessingml.document');
+      expect(res.headers['content-disposition']).toBe('inline; filename="ahmed_profile.docx"');
     });
 
     it('streams PDF binary content with Content-Type and Content-Disposition headers', async () => {
@@ -347,33 +347,22 @@ describe('CV File Preview Endpoint Unit & Integration Tests', () => {
       expect(res.body.toString('utf8')).toContain('%PDF-1.4 Mock PDF binary content');
     });
 
-    it('supports Accept-Language: ar header for localized 415 response', async () => {
+    it('supports Accept-Language: ar header for localized 404 response', async () => {
       jest.spyOn(db.User, 'findByPk').mockResolvedValueOnce({
         id: 10,
         role: 'candidate',
         is_active: true
       });
 
-      jest.spyOn(db.CvDocument, 'findByPk').mockResolvedValueOnce({
-        id: 2,
-        candidate_profile_id: 100,
-        original_filename: 'ahmed_profile.docx',
-        storage_path: sampleDocxPath,
-        mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        candidateProfile: {
-          id: 100,
-          user_id: 10
-        }
-      });
+      jest.spyOn(db.CvDocument, 'findByPk').mockResolvedValueOnce(null);
 
       const res = await request(app)
-        .get('/api/cv/preview/2')
+        .get('/api/cv/preview/999')
         .set('Authorization', `Bearer ${candidateToken}`)
         .set('Accept-Language', 'ar')
-        .expect(415);
+        .expect(404);
 
-      expect(res.body.message).toContain('PDF');
-      expect(res.body.message).toMatch(/ملف السيرة الذاتية/);
+      expect(res.body.message).toMatch(/ملف السيرة الذاتية غير موجود/);
     });
 
     it('GET /api/cv/preview streams latest CV without requiring an ID parameter', async () => {
@@ -559,6 +548,161 @@ describe('CV File Preview Endpoint Unit & Integration Tests', () => {
       expect(result.filePath).toBe(sampleDocxPath);
       expect(result.filename).toBe('ahmed_profile.docx');
       expect(result.mimeType).toBe('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    });
+  });
+
+  describe('4. POST /api/cv/file (Upload Raw CV File without AI extraction)', () => {
+    it('directly creates CvDocument record without creating CvExtraction or queue job', async () => {
+      jest.spyOn(db.CandidateProfile, 'findOne').mockResolvedValueOnce({
+        id: 100,
+        user_id: 10
+      });
+      jest.spyOn(db.CvDocument, 'max').mockResolvedValueOnce(2);
+      jest.spyOn(db.CvDocument, 'update').mockResolvedValueOnce([1]);
+      jest.spyOn(db.CvDocument, 'create').mockResolvedValueOnce({
+        id: 3,
+        candidate_profile_id: 100,
+        original_filename: 'direct_upload.pdf',
+        storage_path: samplePdfPath,
+        mime_type: 'application/pdf',
+        file_size: 1024,
+        version: 3,
+        is_current: true,
+        status: 'completed',
+        processed_at: new Date()
+      });
+
+      const extractionSpy = jest.spyOn(db.CvExtraction, 'create');
+      const queueSpy = jest.spyOn(queueService, 'dispatch');
+
+      const mockFile = {
+        originalname: 'direct_upload.pdf',
+        path: samplePdfPath,
+        mimetype: 'application/pdf',
+        size: 1024
+      };
+
+      const result = await cvService.uploadRawCv(10, mockFile);
+
+      expect(result.id).toBe(3);
+      expect(result.version).toBe(3);
+      expect(result.status).toBe('completed');
+      expect(extractionSpy).not.toHaveBeenCalled();
+      expect(queueSpy).not.toHaveBeenCalled();
+    });
+
+    it('returns 401 Unauthorized when uploading raw CV without token', async () => {
+      const res = await request(app)
+        .post('/api/cv/file')
+        .expect(401);
+
+      expect(res.body.message).toMatch(/Unauthenticated/i);
+    });
+
+    it('returns 403 Forbidden when user is an admin instead of active candidate', async () => {
+      jest.spyOn(db.User, 'findByPk').mockResolvedValueOnce({
+        id: 1,
+        role: 'admin',
+        is_active: true
+      });
+
+      const res = await request(app)
+        .post('/api/cv/file')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(403);
+
+      expect(res.body.message).toMatch(/permission/i);
+    });
+
+    it('returns 422 Unprocessable Entity when no file is uploaded', async () => {
+      jest.spyOn(db.User, 'findByPk').mockResolvedValueOnce({
+        id: 10,
+        role: 'candidate',
+        is_active: true
+      });
+
+      const res = await request(app)
+        .post('/api/cv/file')
+        .set('Authorization', `Bearer ${candidateToken}`)
+        .expect(422);
+
+      expect(res.body.message).toMatch(/required/i);
+    });
+
+    it('successfully uploads raw CV using field name "cv" and returns stored file details', async () => {
+      jest.spyOn(db.User, 'findByPk').mockResolvedValueOnce({
+        id: 10,
+        role: 'candidate',
+        is_active: true
+      });
+      jest.spyOn(db.CandidateProfile, 'findOne').mockResolvedValueOnce({
+        id: 100,
+        user_id: 10
+      });
+      jest.spyOn(db.CvDocument, 'max').mockResolvedValueOnce(0);
+      jest.spyOn(db.CvDocument, 'update').mockResolvedValueOnce([0]);
+      jest.spyOn(db.CvDocument, 'create').mockImplementationOnce((data) => Promise.resolve({
+        id: 15,
+        ...data,
+        created_at: new Date(),
+        updated_at: new Date()
+      }));
+
+      const queueSpy = jest.spyOn(queueService, 'dispatch');
+
+      const res = await request(app)
+        .post('/api/cv/file')
+        .set('Authorization', `Bearer ${candidateToken}`)
+        .attach('cv', samplePdfPath)
+        .expect(201);
+
+      expect(res.body.status).toBe('success');
+      expect(res.body.data).toMatchObject({
+        id: 15,
+        candidate_profile_id: 100,
+        original_filename: 'sample_resume.pdf',
+        mime_type: 'application/pdf',
+        version: 1,
+        is_current: true,
+        status: 'completed',
+        preview_url: '/api/cv/preview/15',
+        download_url: '/api/cv/download/15'
+      });
+      expect(queueSpy).not.toHaveBeenCalled();
+    });
+
+    it('successfully uploads raw CV using alternate field name "cv_file"', async () => {
+      jest.spyOn(db.User, 'findByPk').mockResolvedValueOnce({
+        id: 10,
+        role: 'candidate',
+        is_active: true
+      });
+      jest.spyOn(db.CandidateProfile, 'findOne').mockResolvedValueOnce({
+        id: 100,
+        user_id: 10
+      });
+      jest.spyOn(db.CvDocument, 'max').mockResolvedValueOnce(1);
+      jest.spyOn(db.CvDocument, 'update').mockResolvedValueOnce([1]);
+      jest.spyOn(db.CvDocument, 'create').mockImplementationOnce((data) => Promise.resolve({
+        id: 16,
+        ...data,
+        created_at: new Date(),
+        updated_at: new Date()
+      }));
+
+      const queueSpy = jest.spyOn(queueService, 'dispatch');
+
+      const res = await request(app)
+        .post('/api/cv/file')
+        .set('Authorization', `Bearer ${candidateToken}`)
+        .attach('cv_file', samplePdfPath)
+        .expect(201);
+
+      expect(res.body.status).toBe('success');
+      expect(res.body.data.id).toBe(16);
+      expect(res.body.data.version).toBe(2);
+      expect(res.body.data.original_filename).toBe('sample_resume.pdf');
+      expect(queueSpy).not.toHaveBeenCalled();
     });
   });
 });

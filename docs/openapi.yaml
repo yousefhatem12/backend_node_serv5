@@ -1183,6 +1183,84 @@ paths:
           $ref: '#/components/responses/NotFoundError'
 
   /cv/file:
+    post:
+      tags: [CV]
+      summary: Upload raw candidate CV file without AI extraction
+      description: "Stores the raw candidate CV file directly (accepting 'cv' or 'cv_file' multipart fields) and saves metadata without triggering parsing or AI data extraction layers."
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                cv:
+                  type: string
+                  format: binary
+                  description: Candidate CV file (PDF or DOCX).
+                cv_file:
+                  type: string
+                  format: binary
+                  description: Candidate CV file alternate field name.
+      responses:
+        '201':
+          description: Raw CV file uploaded and stored successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: CV file uploaded successfully.
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      candidate_profile_id:
+                        type: integer
+                        example: 10
+                      original_filename:
+                        type: string
+                        example: resume.pdf
+                      storage_path:
+                        type: string
+                        example: uploads/cvs/cv-12345.pdf
+                      mime_type:
+                        type: string
+                        example: application/pdf
+                      file_size:
+                        type: integer
+                        example: 1048576
+                      version:
+                        type: integer
+                        example: 1
+                      is_current:
+                        type: boolean
+                        example: true
+                      status:
+                        type: string
+                        example: completed
+                      preview_url:
+                        type: string
+                        example: /api/cv/preview/1
+                      download_url:
+                        type: string
+                        example: /api/cv/download/1
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
     get:
       tags: [CV]
       summary: Return candidate's latest CV file for any format (PDF, DOCX, etc.)
@@ -1234,12 +1312,12 @@ paths:
     get:
       tags: [CV]
       summary: Stream and preview candidate's latest uploaded CV document inline
-      description: "Streams the authenticated candidate's active/latest uploaded CV file as inline binary PDF data (`Content-Type: application/pdf`). Non-PDF files (e.g. DOCX) return 415 Unsupported Media Type."
+      description: "Streams the authenticated candidate's active/latest uploaded CV file as inline binary data with matching document Content-Type (`application/pdf`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document`, etc.) and `Content-Disposition: inline`."
       parameters:
         - $ref: '#/components/parameters/AcceptLanguage'
       responses:
         '200':
-          description: Inline binary PDF file stream
+          description: Inline binary CV file stream
           headers:
             Content-Type:
               schema:
@@ -1254,29 +1332,26 @@ paths:
               schema:
                 type: string
                 format: binary
+            application/vnd.openxmlformats-officedocument.wordprocessingml.document:
+              schema:
+                type: string
+                format: binary
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '403':
           $ref: '#/components/responses/ForbiddenError'
         '404':
           $ref: '#/components/responses/NotFoundError'
-        '415':
-          description: Unsupported Media Type (Non-PDF document cannot be previewed inline)
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: The stored CV is in DOCX format and cannot be previewed inline as PDF. Only PDF files are supported for inline preview.
-                required: [message]
 
   /cv/preview/{cvDocument}:
     get:
       tags: [CV]
-      summary: Stream and preview CV PDF document inline
-      description: "Streams the candidate's uploaded CV file as inline binary PDF data (`Content-Type: application/pdf`). Non-PDF files (e.g. DOCX) return 415 Unsupported Media Type. Strict ownership is enforced."
+      summary: Stream and preview specific candidate CV document inline
+      description: "Streams the authenticated candidate's specified CV file as inline binary data with matching document Content-Type and `Content-Disposition: inline`. Strict candidate ownership is enforced."
       parameters:
         - $ref: '#/components/parameters/AcceptLanguage'
         - name: cvDocument
@@ -1287,7 +1362,7 @@ paths:
           description: Unique identifier of the CV document
       responses:
         '200':
-          description: Inline binary PDF file stream
+          description: Inline binary CV file stream
           headers:
             Content-Type:
               schema:
@@ -1302,23 +1377,20 @@ paths:
               schema:
                 type: string
                 format: binary
+            application/vnd.openxmlformats-officedocument.wordprocessingml.document:
+              schema:
+                type: string
+                format: binary
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '403':
           $ref: '#/components/responses/ForbiddenError'
         '404':
           $ref: '#/components/responses/NotFoundError'
-        '415':
-          description: Unsupported Media Type (Non-PDF document cannot be previewed inline)
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: The stored CV is in DOCX format and cannot be previewed inline as PDF. Only PDF files are supported for inline preview.
-                required: [message]
 
   /cv/history:
     get:

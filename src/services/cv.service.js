@@ -59,6 +59,46 @@ class CvService {
   }
 
   /**
+   * Upload raw CV file without triggering parsing or AI extraction
+   * Stores physical file directly and saves record/metadata
+   */
+  async uploadRawCv(userId, file) {
+    let profile = await db.CandidateProfile.findOne({
+      where: { user_id: userId }
+    });
+    if (!profile) {
+      profile = await candidateProfileService.getOrCreateProfile(userId);
+    }
+
+    // Compute version: find max version for this candidate
+    const maxVersion = await db.CvDocument.max('version', {
+      where: { candidate_profile_id: profile.id }
+    }) || 0;
+    const newVersion = maxVersion + 1;
+
+    // Mark previous documents as non-current
+    await db.CvDocument.update(
+      { is_current: false },
+      { where: { candidate_profile_id: profile.id } }
+    );
+
+    // Create CV Document record without creating CvExtraction or queue job
+    const cvDocument = await db.CvDocument.create({
+      candidate_profile_id: profile.id,
+      original_filename: file.originalname,
+      storage_path: file.path,
+      mime_type: file.mimetype,
+      file_size: file.size,
+      version: newVersion,
+      is_current: true,
+      status: 'completed',
+      processed_at: new Date()
+    });
+
+    return cvDocument;
+  }
+
+  /**
    * Check extraction status and retrieved content
    */
   async getStatus(userId, cvDocumentId) {
@@ -269,20 +309,22 @@ class CvService {
       throw new NotFoundError(t('cv.fileNotFound', locale));
     }
 
-    // Check file format: PDF is required for inline browser preview
+    // Determine matching MIME type (application/pdf or matching document type)
     const originalExt = path.extname(doc.original_filename || '').toLowerCase();
     const storageExt = path.extname(doc.storage_path || '').toLowerCase();
     const ext = originalExt || storageExt;
-    const mime = (doc.mime_type || '').toLowerCase();
 
-    const isPdf = ext === '.pdf' || mime === 'application/pdf';
-
-    if (!isPdf) {
-      const formatName = ext.replace('.', '').toUpperCase() || 'DOCX';
-      const msg = locale === 'ar'
-        ? `ملف السيرة الذاتية بصيغة ${formatName} ولا يمكن معاينته مباشرة كـ PDF. المعاينة المباشرة متاحة لملفات PDF فقط.`
-        : `The stored CV is in ${formatName} format and cannot be previewed inline as PDF. Only PDF files are supported for inline preview.`;
-      throw new UnsupportedMediaTypeError(msg);
+    let mimeType = doc.mime_type;
+    if (!mimeType || mimeType === 'application/octet-stream') {
+      if (ext === '.pdf') {
+        mimeType = 'application/pdf';
+      } else if (ext === '.docx') {
+        mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      } else if (ext === '.doc') {
+        mimeType = 'application/msword';
+      } else {
+        mimeType = 'application/pdf';
+      }
     }
 
     const fileSize = fs.existsSync(resolvedPath) ? fs.statSync(resolvedPath).size : doc.file_size;
@@ -290,8 +332,8 @@ class CvService {
     return {
       doc,
       filePath: resolvedPath,
-      filename: doc.original_filename || 'cv.pdf',
-      mimeType: doc.mime_type || (isPdf ? 'application/pdf' : 'application/octet-stream'),
+      filename: doc.original_filename || (ext ? `cv${ext}` : 'cv.pdf'),
+      mimeType,
       fileSize
     };
   }

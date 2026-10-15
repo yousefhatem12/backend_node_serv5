@@ -30,7 +30,7 @@ const {
   cvDocumentParamSchema
 } = require('../validators');
 
-const { uploadAvatarMiddleware } = require('../middlewares/upload.middleware');
+const { uploadAvatarMiddleware, uploadCvMiddleware } = require('../middlewares/upload.middleware');
 
 // Protect all candidate routes: must be authenticated and active candidate
 router.use(authMiddleware, ensureActiveCandidate);
@@ -75,6 +75,7 @@ router.get('/career-preferences', CandidateProfileController.getCareerPreference
 router.patch('/career-preferences', validate(updateCareerPreferencesSchema), CandidateProfileController.updateCareerPreferences);
 
 // --- CANDIDATE CV PREVIEW & FILE ---
+router.post('/cv/file', uploadCvMiddleware, CvController.uploadRawFile);
 router.get('/cv/preview', CvController.preview);
 router.get('/cv/preview/latest', CvController.preview);
 router.get('/cv/preview/:cvDocument', validate(cvDocumentParamSchema), CvController.preview);

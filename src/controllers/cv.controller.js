@@ -21,6 +21,38 @@ class CvController {
   }
 
   /**
+   * POST /api/cv/file
+   * Upload raw CV file directly without triggering text parsing or AI extraction
+   */
+  static async uploadRawFile(req, res, next) {
+    try {
+      const doc = await cvService.uploadRawCv(req.user.id, req.file);
+      return res.status(201).json({
+        status: 'success',
+        message: req.t ? req.t('cv.uploaded') : 'CV file uploaded successfully.',
+        data: {
+          id: Number(doc.id),
+          candidate_profile_id: Number(doc.candidate_profile_id),
+          original_filename: doc.original_filename,
+          storage_path: doc.storage_path,
+          mime_type: doc.mime_type,
+          file_size: Number(doc.file_size),
+          version: Number(doc.version),
+          is_current: Boolean(doc.is_current),
+          status: doc.status,
+          preview_url: `/api/cv/preview/${doc.id}`,
+          download_url: `/api/cv/download/${doc.id}`,
+          processed_at: doc.processed_at ? new Date(doc.processed_at).toISOString() : null,
+          created_at: doc.created_at ? new Date(doc.created_at).toISOString() : null,
+          updated_at: doc.updated_at ? new Date(doc.updated_at).toISOString() : null
+        }
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
    * GET /api/cv/status/:cvDocument
    */
   static async getStatus(req, res, next) {

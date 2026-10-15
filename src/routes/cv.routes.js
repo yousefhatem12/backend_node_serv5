@@ -17,8 +17,11 @@ const {
 // All CV endpoints require authenticated candidate
 router.use(authMiddleware, ensureActiveCandidate);
 
-// POST /api/cv/upload
+// POST /api/cv/upload (upload with parsing/extraction)
 router.post('/upload', uploadCvMiddleware, CvController.upload);
+
+// POST /api/cv/file (upload raw CV file without parsing)
+router.post('/file', uploadCvMiddleware, CvController.uploadRawFile);
 
 // GET /api/cv/status/:cvDocument
 router.get('/status/:cvDocument', validate(cvDocumentParamSchema), CvController.getStatus);
