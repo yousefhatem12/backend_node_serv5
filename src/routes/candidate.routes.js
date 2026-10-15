@@ -74,10 +74,16 @@ router.put('/profile/avater', uploadAvatarMiddleware, CandidateProfileController
 router.get('/career-preferences', CandidateProfileController.getCareerPreferences);
 router.patch('/career-preferences', validate(updateCareerPreferencesSchema), CandidateProfileController.updateCareerPreferences);
 
-// --- CANDIDATE CV PREVIEW ---
+// --- CANDIDATE CV PREVIEW & FILE ---
 router.get('/cv/preview', CvController.preview);
 router.get('/cv/preview/latest', CvController.preview);
 router.get('/cv/preview/:cvDocument', validate(cvDocumentParamSchema), CvController.preview);
+router.get('/cv/file', CvController.getFile);
+router.get('/cv/file/latest', CvController.getFile);
+router.get('/cv/file/:cvDocument', validate(cvDocumentParamSchema), CvController.getFile);
+router.get('/cv/download', CvController.getFile);
+router.get('/cv/download/latest', CvController.getFile);
+router.get('/cv/download/:cvDocument', validate(cvDocumentParamSchema), CvController.getFile);
 router.get('/cv', CvController.preview);
 
 // --- SKILLS CRUD ---

@@ -443,5 +443,122 @@ describe('CV File Preview Endpoint Unit & Integration Tests', () => {
       expect(res.headers['content-type']).toMatch(/application\/pdf/);
       expect(res.headers['content-disposition']).toBe('inline; filename="latest_resume.pdf"');
     });
+
+    it('GET /api/cv streams latest CV file directly at root /cv', async () => {
+      jest.spyOn(db.User, 'findByPk').mockResolvedValueOnce({
+        id: 10,
+        role: 'candidate',
+        is_active: true
+      });
+
+      jest.spyOn(db.CandidateProfile, 'findOne').mockResolvedValueOnce({
+        id: 100,
+        user_id: 10
+      });
+
+      jest.spyOn(db.CvDocument, 'findOne').mockResolvedValueOnce({
+        id: 7,
+        candidate_profile_id: 100,
+        original_filename: 'latest_resume.pdf',
+        storage_path: samplePdfPath,
+        mime_type: 'application/pdf',
+        is_current: true,
+        candidateProfile: {
+          id: 100,
+          user_id: 10
+        }
+      });
+
+      const res = await request(app)
+        .get('/api/cv')
+        .set('Authorization', `Bearer ${candidateToken}`)
+        .expect(200);
+
+      expect(res.headers['content-type']).toMatch(/application\/pdf/);
+      expect(res.headers['content-disposition']).toBe('inline; filename="latest_resume.pdf"');
+      expect(res.headers['accept-ranges']).toBe('bytes');
+    });
+
+    it('GET /api/cv/file/:cvDocument returns CV file including DOCX without 415 error', async () => {
+      jest.spyOn(db.User, 'findByPk').mockResolvedValueOnce({
+        id: 10,
+        role: 'candidate',
+        is_active: true
+      });
+
+      jest.spyOn(db.CvDocument, 'findByPk').mockResolvedValueOnce({
+        id: 2,
+        candidate_profile_id: 100,
+        original_filename: 'ahmed_profile.docx',
+        storage_path: sampleDocxPath,
+        mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        candidateProfile: {
+          id: 100,
+          user_id: 10
+        }
+      });
+
+      const res = await request(app)
+        .get('/api/cv/file/2')
+        .set('Authorization', `Bearer ${candidateToken}`)
+        .expect(200);
+
+      expect(res.headers['content-type']).toContain('wordprocessingml.document');
+      expect(res.headers['content-disposition']).toBe('inline; filename="ahmed_profile.docx"');
+    });
+
+    it('GET /api/cv/download returns CV file with attachment disposition', async () => {
+      jest.spyOn(db.User, 'findByPk').mockResolvedValueOnce({
+        id: 10,
+        role: 'candidate',
+        is_active: true
+      });
+
+      jest.spyOn(db.CandidateProfile, 'findOne').mockResolvedValueOnce({
+        id: 100,
+        user_id: 10
+      });
+
+      jest.spyOn(db.CvDocument, 'findOne').mockResolvedValueOnce({
+        id: 7,
+        candidate_profile_id: 100,
+        original_filename: 'latest_resume.pdf',
+        storage_path: samplePdfPath,
+        mime_type: 'application/pdf',
+        is_current: true,
+        candidateProfile: {
+          id: 100,
+          user_id: 10
+        }
+      });
+
+      const res = await request(app)
+        .get('/api/cv/download')
+        .set('Authorization', `Bearer ${candidateToken}`)
+        .expect(200);
+
+      expect(res.headers['content-disposition']).toBe('attachment; filename="latest_resume.pdf"');
+    });
+  });
+
+  describe('3. cvService.getCvFile direct service tests', () => {
+    it('returns DOCX file successfully without throwing UnsupportedMediaTypeError', async () => {
+      jest.spyOn(db.CvDocument, 'findByPk').mockResolvedValueOnce({
+        id: 2,
+        candidate_profile_id: 100,
+        original_filename: 'ahmed_profile.docx',
+        storage_path: sampleDocxPath,
+        mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        candidateProfile: {
+          id: 100,
+          user_id: 10
+        }
+      });
+
+      const result = await cvService.getCvFile(10, 2, 'en');
+      expect(result.filePath).toBe(sampleDocxPath);
+      expect(result.filename).toBe('ahmed_profile.docx');
+      expect(result.mimeType).toBe('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    });
   });
 });

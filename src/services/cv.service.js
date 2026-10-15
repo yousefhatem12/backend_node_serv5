@@ -285,10 +285,102 @@ class CvService {
       throw new UnsupportedMediaTypeError(msg);
     }
 
+    const fileSize = fs.existsSync(resolvedPath) ? fs.statSync(resolvedPath).size : doc.file_size;
+
     return {
       doc,
       filePath: resolvedPath,
-      filename: doc.original_filename || 'cv.pdf'
+      filename: doc.original_filename || 'cv.pdf',
+      mimeType: doc.mime_type || (isPdf ? 'application/pdf' : 'application/octet-stream'),
+      fileSize
+    };
+  }
+
+  /**
+   * Retrieve and validate any CV file (PDF, DOCX, DOC, etc.) for direct file return/download
+   * Enforces strict candidate ownership and physical file existence
+   */
+  async getCvFile(userId, cvDocumentId = null, locale = 'en') {
+    let doc = null;
+
+    if (!cvDocumentId || cvDocumentId === 'latest') {
+      const profile = await db.CandidateProfile.findOne({
+        where: { user_id: userId }
+      });
+      if (!profile) {
+        throw new NotFoundError(t('cv.notFound', locale));
+      }
+
+      // First find active / current CV
+      doc = await db.CvDocument.findOne({
+        where: {
+          candidate_profile_id: profile.id,
+          is_current: true
+        },
+        include: [
+          {
+            model: db.CandidateProfile,
+            as: 'candidateProfile',
+            attributes: ['id', 'user_id']
+          }
+        ]
+      });
+
+      // Fallback to highest version / latest id
+      if (!doc) {
+        doc = await db.CvDocument.findOne({
+          where: {
+            candidate_profile_id: profile.id
+          },
+          order: [['version', 'DESC'], ['id', 'DESC']],
+          include: [
+            {
+              model: db.CandidateProfile,
+              as: 'candidateProfile',
+              attributes: ['id', 'user_id']
+            }
+          ]
+        });
+      }
+    } else {
+      doc = await db.CvDocument.findByPk(cvDocumentId, {
+        include: [
+          {
+            model: db.CandidateProfile,
+            as: 'candidateProfile',
+            attributes: ['id', 'user_id']
+          }
+        ]
+      });
+    }
+
+    if (!doc) {
+      throw new NotFoundError(t('cv.notFound', locale));
+    }
+
+    // Verify strict ownership: authenticated candidate must own this CV
+    const ownerUserId = doc.candidateProfile ? Number(doc.candidateProfile.user_id) : null;
+    if (ownerUserId !== Number(userId)) {
+      throw new ForbiddenError(t('cv.forbidden', locale));
+    }
+
+    // Verify physical file exists in storage
+    const resolvedPath = path.isAbsolute(doc.storage_path)
+      ? doc.storage_path
+      : path.resolve(process.cwd(), doc.storage_path);
+
+    if (!fs.existsSync(resolvedPath)) {
+      throw new NotFoundError(t('cv.fileNotFound', locale));
+    }
+
+    const fileSize = fs.existsSync(resolvedPath) ? fs.statSync(resolvedPath).size : doc.file_size;
+
+    return {
+      doc,
+      filePath: resolvedPath,
+      filename: doc.original_filename || 'cv.pdf',
+      mimeType: doc.mime_type || 'application/octet-stream',
+      fileSize
     };
   }
 }

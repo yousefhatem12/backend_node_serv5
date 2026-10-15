@@ -87,7 +87,7 @@ class CvController {
     try {
       const locale = req.locale || 'en';
       const docId = req.params?.cvDocument || req.query?.cvDocument || req.query?.id || null;
-      const { filePath, filename } = await cvService.getPreviewDocument(
+      const { filePath, filename, mimeType, fileSize } = await cvService.getPreviewDocument(
         req.user.id,
         docId,
         locale
@@ -95,8 +95,46 @@ class CvController {
 
       const safeFilename = filename.replace(/["\r\n]/g, '');
 
-      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Type', mimeType || 'application/pdf');
       res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"`);
+      if (fileSize) {
+        res.setHeader('Content-Length', fileSize);
+      }
+      res.setHeader('Accept-Ranges', 'bytes');
+
+      const fileStream = fs.createReadStream(filePath);
+      fileStream.on('error', (err) => next(err));
+      return fileStream.pipe(res);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * GET /api/cv/file, GET /api/cv/file/:cvDocument, GET /api/cv/download, GET /api/cv/download/:cvDocument
+   * Return CV file directly for any format (PDF, DOCX, DOC, etc.)
+   */
+  static async getFile(req, res, next) {
+    try {
+      const locale = req.locale || 'en';
+      const docId = req.params?.cvDocument || req.query?.cvDocument || req.query?.id || null;
+      const isDownload = req.query?.download === 'true' || (req.baseUrl + req.path).includes('/download');
+
+      const { filePath, filename, mimeType, fileSize } = await cvService.getCvFile(
+        req.user.id,
+        docId,
+        locale
+      );
+
+      const safeFilename = filename.replace(/["\r\n]/g, '');
+      const disposition = isDownload ? 'attachment' : 'inline';
+
+      res.setHeader('Content-Type', mimeType || 'application/octet-stream');
+      res.setHeader('Content-Disposition', `${disposition}; filename="${safeFilename}"`);
+      if (fileSize) {
+        res.setHeader('Content-Length', fileSize);
+      }
+      res.setHeader('Accept-Ranges', 'bytes');
 
       const fileStream = fs.createReadStream(filePath);
       fileStream.on('error', (err) => next(err));

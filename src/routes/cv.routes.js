@@ -23,6 +23,19 @@ router.post('/upload', uploadCvMiddleware, CvController.upload);
 // GET /api/cv/status/:cvDocument
 router.get('/status/:cvDocument', validate(cvDocumentParamSchema), CvController.getStatus);
 
+// GET /api/cv (preview latest CV file)
+router.get('/', CvController.preview);
+
+// GET /api/cv/file (return CV file directly)
+router.get('/file', CvController.getFile);
+router.get('/file/latest', CvController.getFile);
+router.get('/file/:cvDocument', validate(cvDocumentParamSchema), CvController.getFile);
+
+// GET /api/cv/download (download CV file)
+router.get('/download', CvController.getFile);
+router.get('/download/latest', CvController.getFile);
+router.get('/download/:cvDocument', validate(cvDocumentParamSchema), CvController.getFile);
+
 // GET /api/cv/preview (preview latest/active CV)
 router.get('/preview', CvController.preview);
 
