@@ -74,6 +74,30 @@ describe('CV File Preview Endpoint Unit & Integration Tests', () => {
       expect(result.filename).toBe('ahmed_wael_cv.pdf');
     });
 
+    it('successfully retrieves candidate latest active CV when cvDocumentId is omitted or latest', async () => {
+      jest.spyOn(db.CandidateProfile, 'findOne').mockResolvedValueOnce({
+        id: 100,
+        user_id: 10
+      });
+
+      jest.spyOn(db.CvDocument, 'findOne').mockResolvedValueOnce({
+        id: 7,
+        candidate_profile_id: 100,
+        original_filename: 'latest_cv.pdf',
+        storage_path: samplePdfPath,
+        mime_type: 'application/pdf',
+        is_current: true,
+        candidateProfile: {
+          id: 100,
+          user_id: 10
+        }
+      });
+
+      const result = await cvService.getPreviewDocument(10, null, 'en');
+      expect(result.filePath).toBe(samplePdfPath);
+      expect(result.filename).toBe('latest_cv.pdf');
+    });
+
     it('throws 404 NotFoundError when CV document does not exist in database', async () => {
       jest.spyOn(db.CvDocument, 'findByPk').mockResolvedValue(null);
 
@@ -350,6 +374,74 @@ describe('CV File Preview Endpoint Unit & Integration Tests', () => {
 
       expect(res.body.message).toContain('PDF');
       expect(res.body.message).toMatch(/ملف السيرة الذاتية/);
+    });
+
+    it('GET /api/cv/preview streams latest CV without requiring an ID parameter', async () => {
+      jest.spyOn(db.User, 'findByPk').mockResolvedValueOnce({
+        id: 10,
+        role: 'candidate',
+        is_active: true
+      });
+
+      jest.spyOn(db.CandidateProfile, 'findOne').mockResolvedValueOnce({
+        id: 100,
+        user_id: 10
+      });
+
+      jest.spyOn(db.CvDocument, 'findOne').mockResolvedValueOnce({
+        id: 7,
+        candidate_profile_id: 100,
+        original_filename: 'latest_resume.pdf',
+        storage_path: samplePdfPath,
+        mime_type: 'application/pdf',
+        is_current: true,
+        candidateProfile: {
+          id: 100,
+          user_id: 10
+        }
+      });
+
+      const res = await request(app)
+        .get('/api/cv/preview')
+        .set('Authorization', `Bearer ${candidateToken}`)
+        .expect(200);
+
+      expect(res.headers['content-type']).toMatch(/application\/pdf/);
+      expect(res.headers['content-disposition']).toBe('inline; filename="latest_resume.pdf"');
+    });
+
+    it('GET /api/cv/preview/latest streams latest CV', async () => {
+      jest.spyOn(db.User, 'findByPk').mockResolvedValueOnce({
+        id: 10,
+        role: 'candidate',
+        is_active: true
+      });
+
+      jest.spyOn(db.CandidateProfile, 'findOne').mockResolvedValueOnce({
+        id: 100,
+        user_id: 10
+      });
+
+      jest.spyOn(db.CvDocument, 'findOne').mockResolvedValueOnce({
+        id: 7,
+        candidate_profile_id: 100,
+        original_filename: 'latest_resume.pdf',
+        storage_path: samplePdfPath,
+        mime_type: 'application/pdf',
+        is_current: true,
+        candidateProfile: {
+          id: 100,
+          user_id: 10
+        }
+      });
+
+      const res = await request(app)
+        .get('/api/cv/preview/latest')
+        .set('Authorization', `Bearer ${candidateToken}`)
+        .expect(200);
+
+      expect(res.headers['content-type']).toMatch(/application\/pdf/);
+      expect(res.headers['content-disposition']).toBe('inline; filename="latest_resume.pdf"');
     });
   });
 });

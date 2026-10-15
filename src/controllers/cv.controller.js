@@ -80,15 +80,16 @@ class CvController {
   }
 
   /**
-   * GET /api/cv/preview/:cvDocument
+   * GET /api/cv/preview and GET /api/cv/preview/:cvDocument
    * Preview CV PDF document inline
    */
   static async preview(req, res, next) {
     try {
       const locale = req.locale || 'en';
+      const docId = req.params?.cvDocument || req.query?.cvDocument || req.query?.id || null;
       const { filePath, filename } = await cvService.getPreviewDocument(
         req.user.id,
-        req.params.cvDocument,
+        docId,
         locale
       );
 

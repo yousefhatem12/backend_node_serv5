@@ -1156,6 +1156,48 @@ paths:
         '404':
           $ref: '#/components/responses/NotFoundError'
 
+  /cv/preview:
+    get:
+      tags: [CV]
+      summary: Stream and preview candidate's latest uploaded CV document inline
+      description: "Streams the authenticated candidate's active/latest uploaded CV file as inline binary PDF data (`Content-Type: application/pdf`). Non-PDF files (e.g. DOCX) return 415 Unsupported Media Type."
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+      responses:
+        '200':
+          description: Inline binary PDF file stream
+          headers:
+            Content-Type:
+              schema:
+                type: string
+                example: application/pdf
+            Content-Disposition:
+              schema:
+                type: string
+                example: inline; filename="candidate_resume.pdf"
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '415':
+          description: Unsupported Media Type (Non-PDF document cannot be previewed inline)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: The stored CV is in DOCX format and cannot be previewed inline as PDF. Only PDF files are supported for inline preview.
+                required: [message]
+
   /cv/preview/{cvDocument}:
     get:
       tags: [CV]

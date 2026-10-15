@@ -196,16 +196,59 @@ class CvService {
    * Retrieve and validate CV document for inline preview
    * Strict ownership check, physical file existence check, and PDF format verification
    */
-  async getPreviewDocument(userId, cvDocumentId, locale = 'en') {
-    const doc = await db.CvDocument.findByPk(cvDocumentId, {
-      include: [
-        {
-          model: db.CandidateProfile,
-          as: 'candidateProfile',
-          attributes: ['id', 'user_id']
-        }
-      ]
-    });
+  async getPreviewDocument(userId, cvDocumentId = null, locale = 'en') {
+    let doc = null;
+
+    if (!cvDocumentId || cvDocumentId === 'latest') {
+      const profile = await db.CandidateProfile.findOne({
+        where: { user_id: userId }
+      });
+      if (!profile) {
+        throw new NotFoundError(t('cv.notFound', locale));
+      }
+
+      // First find active / current CV
+      doc = await db.CvDocument.findOne({
+        where: {
+          candidate_profile_id: profile.id,
+          is_current: true
+        },
+        include: [
+          {
+            model: db.CandidateProfile,
+            as: 'candidateProfile',
+            attributes: ['id', 'user_id']
+          }
+        ]
+      });
+
+      // Fallback to highest version / latest id
+      if (!doc) {
+        doc = await db.CvDocument.findOne({
+          where: {
+            candidate_profile_id: profile.id
+          },
+          order: [['version', 'DESC'], ['id', 'DESC']],
+          include: [
+            {
+              model: db.CandidateProfile,
+              as: 'candidateProfile',
+              attributes: ['id', 'user_id']
+            }
+          ]
+        });
+      }
+    } else {
+      doc = await db.CvDocument.findByPk(cvDocumentId, {
+        include: [
+          {
+            model: db.CandidateProfile,
+            as: 'candidateProfile',
+            attributes: ['id', 'user_id']
+          }
+        ]
+      });
+    }
 
     if (!doc) {
       throw new NotFoundError(t('cv.notFound', locale));

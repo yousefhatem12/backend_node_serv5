@@ -12,6 +12,7 @@ const ProjectController = require('../controllers/project.controller');
 const SkillController = require('../controllers/skill.controller');
 const MatchController = require('../controllers/match.controller');
 const JobController = require('../controllers/job.controller');
+const CvController = require('../controllers/cv.controller');
 
 const {
   updateProfileSchema,
@@ -25,7 +26,8 @@ const {
   addCandidateSkillSchema,
   idParamSchema,
   recommendationsQuerySchema,
-  listJobsQuerySchema
+  listJobsQuerySchema,
+  cvDocumentParamSchema
 } = require('../validators');
 
 const { uploadAvatarMiddleware } = require('../middlewares/upload.middleware');
@@ -71,6 +73,12 @@ router.put('/profile/avater', uploadAvatarMiddleware, CandidateProfileController
 
 router.get('/career-preferences', CandidateProfileController.getCareerPreferences);
 router.patch('/career-preferences', validate(updateCareerPreferencesSchema), CandidateProfileController.updateCareerPreferences);
+
+// --- CANDIDATE CV PREVIEW ---
+router.get('/cv/preview', CvController.preview);
+router.get('/cv/preview/latest', CvController.preview);
+router.get('/cv/preview/:cvDocument', validate(cvDocumentParamSchema), CvController.preview);
+router.get('/cv', CvController.preview);
 
 // --- SKILLS CRUD ---
 router.get('/skills', SkillController.listCandidateSkills);
